@@ -49,8 +49,8 @@ section{margin-top:48px}
 @media (max-width:860px){.grid{grid-template-columns:1fr}}
 .panel{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:18px}
 .ctl{margin-bottom:14px}
-.ctl label,.lab{display:flex;justify-content:space-between;font-size:.9rem;font-weight:500;margin-bottom:4px}
-.ctl label output{font-weight:400;color:var(--muted)}
+.ctl label,.lab{display:flex;justify-content:flex-start;gap:.3em;align-items:baseline;font-size:.9rem;font-weight:500;margin-bottom:4px}
+.ctl label output{margin-left:auto;font-weight:400;color:var(--muted)}
 input[type=range]{width:100%;accent-color:var(--solid)}
 input[type=number]{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--rule);border-radius:6px;background:var(--paper);color:var(--ink)}
 .seg{display:flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden}
@@ -93,11 +93,31 @@ th{font-weight:500;color:var(--muted)}
 .collapse{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:end;margin-top:14px}
 .collapse .ctl{margin:0;width:110px}
 @media (prefers-reduced-motion:reduce){.progress div{transition:none}}
-#fg{display:block;width:100%;height:clamp(360px,58vw,580px);cursor:pointer;touch-action:manipulation}
 #fgMsg{min-height:3em;margin:10px 0 0;font-size:.95rem}
-.fglegend{display:grid;grid-template-columns:1fr;gap:6px;font-size:.87rem;color:var(--muted);margin-top:14px}
-.fglegend svg{vertical-align:middle;margin-right:8px;overflow:visible}
 .note{font-size:.85rem;color:var(--muted);margin:10px 0 0}
+.vars{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:6px}
+.vchip{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 4px 5px;border:1.5px solid var(--ink);border-radius:8px;background:var(--panel);color:var(--ink);line-height:1.2}
+.vchip .nm{font-family:"Newsreader",Georgia,serif;font-style:italic;font-size:1.1rem}
+.vchip .val{font-size:.75rem;font-weight:700;letter-spacing:.04em}
+.vchip .dl{font-size:.72rem;opacity:.8}
+.vchip.on{background:var(--ink);color:var(--panel)}
+.vchip.hl,.lit.hl{outline:2px solid var(--flash);outline-offset:1px}
+.vchip.tried{box-shadow:0 0 0 4px var(--flash)}
+.clauses{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;max-height:520px;overflow-y:auto;padding:2px}
+.cl{display:flex;align-items:center;flex-wrap:wrap;gap:2px 3px;border:1px solid var(--rule);border-left:5px solid var(--solid);border-radius:7px;padding:5px 8px;background:var(--panel)}
+.cl.s1{border-left-color:var(--fragile)}
+.cl.s0{border-left-color:var(--unsat);background:color-mix(in srgb,var(--unsat) 11%,var(--panel))}
+.cl.pick{outline:2px solid var(--flash)}
+.cl.hide{display:none}
+.cl .id{font-size:.78rem;color:var(--muted);width:2.6em;flex:none}
+.cl .or,.cl .par{color:var(--muted);font-size:.9rem}
+.lit{font:italic 1.02rem "Newsreader",Georgia,serif;padding:1px 6px;border-radius:5px;border:1px solid var(--rule);background:transparent;color:var(--muted)}
+.lit.t{background:var(--solid);border-color:var(--solid);color:#fff}
+.cl.s0 .lit{border-color:color-mix(in srgb,var(--unsat) 45%,var(--rule));color:var(--ink)}
+.clhead{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.clhead h3,.varhead h3{margin:0;font-size:1rem;font-weight:700}
+.varhead{margin-bottom:10px}
+.varhead p{margin:2px 0 0;font-size:.85rem;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -163,43 +183,39 @@ th{font-weight:500;color:var(--muted)}
 </section>
 
 <section id="graph">
-  <h2>See the factor graph</h2>
-  <p class="sub">Circles are variables, squares are clauses, and each edge is a literal: a variable appearing in a clause, dashed when it appears negated. A literal is thick when it is currently true, so every satisfied clause has at least one thick edge. Click a variable to flip it yourself.</p>
+  <h2>Solve it by hand</h2>
+  <p class="sub">A small instance written out in full. Toggle the variables yourself and watch the clauses light up: a literal is highlighted when it is true, and a clause is satisfied once at least one of its literals is. Or let ASAT take a step to see which move it would make.</p>
   <div class="grid">
     <div class="panel">
       <div class="ctl"><label for="fgN">Variables <var>N</var><output id="fgNOut"></output></label>
-        <input id="fgN" type="range" min="6" max="60" step="1" value="16"></div>
+        <input id="fgN" type="range" min="4" max="40" step="1" value="12"></div>
       <div class="ctl"><label for="fgA">Clause density <var>α</var><output id="fgAOut"></output></label>
         <input id="fgA" type="range" min="0.4" max="5" step="0.05" value="1"></div>
-      <div class="ctl"><label for="fgSp">Speed<output id="fgSpOut"></output></label>
-        <input id="fgSp" type="range" min="1" max="40" step="1" value="4"></div>
       <div class="row">
-        <button class="primary" id="fgRun">Run</button>
-        <button id="fgStep">Step</button>
-        <button id="fgNew">New instance</button>
+        <button class="primary" id="fgNew">New instance</button>
+        <button id="fgRand">Randomize values</button>
       </div>
-      <p class="note">Clause size <var>K</var> and noise <var>p</var> come from the controls above.</p>
-      <div class="fglegend">
-        <span><svg width="16" height="16"><circle cx="8" cy="8" r="7" fill="var(--ink)"/></svg>Variable set to true</span>
-        <span><svg width="16" height="16"><circle cx="8" cy="8" r="6.5" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.5"/></svg>Variable set to false</span>
-        <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--solid)" stroke-width="3.5"/></svg>True literal, satisfies its clause</span>
-        <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--muted)" stroke-width="1"/></svg>False literal</span>
-        <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/></svg>Negated literal (¬<var>x</var>)</span>
-        <span><svg width="16" height="16"><rect x="2" y="2" width="12" height="12" fill="var(--unsat)"/></svg>Unsatisfied clause</span>
-        <span><svg width="16" height="16"><rect x="2" y="2" width="12" height="12" fill="var(--fragile)"/></svg>Clause held by one literal</span>
-        <span><svg width="16" height="16"><rect x="2" y="2" width="12" height="12" fill="var(--solid)"/></svg>Clause held by two or more</span>
-        <span><svg width="16" height="16"><circle cx="8" cy="8" r="6" fill="none" stroke="var(--flash)" stroke-width="3"/></svg>Last clause picked and variable tried</span>
-      </div>
+      <div class="lab" style="margin-top:18px">Let ASAT help</div>
+      <div class="ctl"><label for="fgSp">Speed<output id="fgSpOut"></output></label>
+        <input id="fgSp" type="range" min="1" max="40" step="1" value="3"></div>
+      <div class="row"><button id="fgStep">Step</button><button id="fgRun">Run</button></div>
+      <p class="note">Clause size <var>K</var> and noise <var>p</var> come from the controls above. Each variable shows <var>Δ</var>, the change in the number of unsatisfied clauses if you flip it — the quantity ASAT checks before accepting a flip.</p>
     </div>
     <div class="stage">
       <div class="panel">
-        <canvas id="fg" aria-label="Factor graph of variables and clauses; click a variable to flip it"></canvas>
+        <div class="varhead"><h3>Variables</h3><p>Click to toggle between true and false. Hover to find where a variable appears.</p></div>
+        <div class="vars" id="vars"></div>
+      </div>
+      <div class="panel">
+        <div class="clhead"><h3>Clauses</h3>
+          <label class="check" style="margin:0"><input type="checkbox" id="onlyU"> Show only unsatisfied</label></div>
+        <div class="clauses" id="clauses"></div>
         <p id="fgMsg"></p>
         <div class="readouts" style="margin-top:10px">
           <div><span>Unsatisfied <var>M</var><sub>u</sub></span><strong id="fgMu">–</strong></div>
           <div><span>Clauses <var>M</var></span><strong id="fgM">–</strong></div>
-          <div><span>Trial flips</span><strong id="fgTr">0</strong></div>
-          <div><span>Time <var>t</var></span><strong id="fgT">0</strong></div>
+          <div><span>Your flips</span><strong id="fgMine">0</strong></div>
+          <div><span>ASAT trial flips</span><strong id="fgTr">0</strong></div>
         </div>
       </div>
     </div>
@@ -587,112 +603,78 @@ function drawSweep(){
   drawPlot($('tauPlot'),{xmin:xmin-pad,xmax:xmax+pad,ylog:true,ymin:lo,ymax:hi,xlabel:xl,ylabel:col?'τ_H / N^{z̄}':'τ_H',series:tau,vlines:vl});
 }
 
-/* ---------- factor graph ---------- */
-const FG={solver:null,pos:null,running:false,last:null,acc:0,lastT:0,view:null,manual:null};
-const fgCv=$('fg');
+/* ---------- clause list (solve by hand) ---------- */
+const FG={solver:null,running:false,last:null,acc:0,lastT:0,manual:null,mine:0,hv:-1,chips:[],cards:[],lits:[]};
+const xs=v=>'<var>x</var><sub>'+(v+1)+'</sub>';
 function fgSync(){
   const N=+$('fgN').value,a=+$('fgA').value;
   $('fgNOut').textContent=N;$('fgAOut').innerHTML=a.toFixed(2)+'  (<var>M</var> = '+Math.max(1,Math.round(a*N))+')';
   $('fgSpOut').textContent=$('fgSp').value+' flips/s';
 }
-function fgLayout(s){
-  const n=s.N,m=s.M,tot=n+m,W=fgCv.clientWidth||700,H=fgCv.clientHeight||460,asp=W/H;
-  const x=new Float64Array(tot),y=new Float64Array(tot),rng=mulberry32(seedCounter++);
-  for(let v=0;v<n;v++){const th=2*Math.PI*v/n;x[v]=Math.cos(th)*asp;y[v]=Math.sin(th);}
-  for(let c=0;c<m;c++){let sx=0,sy=0;for(let j=0;j<s.K;j++){const v=s.lits[c*s.K+j]>>1;sx+=x[v];sy+=y[v];}
-    x[n+c]=sx/s.K+(rng()-.5)*.1;y[n+c]=sy/s.K+(rng()-.5)*.1;}
-  const k=Math.sqrt(4*asp/tot),k2=k*k,fx=new Float64Array(tot),fy=new Float64Array(tot),IT=350;
-  for(let it=0;it<IT;it++){
-    fx.fill(0);fy.fill(0);
-    for(let i=0;i<tot;i++)for(let j=i+1;j<tot;j++){
-      let dx=x[i]-x[j],dy=y[i]-y[j],d2=dx*dx+dy*dy;if(d2<1e-6){dx=(rng()-.5)*1e-3;dy=(rng()-.5)*1e-3;d2=1e-6;}
-      const f=k2/d2;fx[i]+=dx*f;fy[i]+=dy*f;fx[j]-=dx*f;fy[j]-=dy*f;}
-    for(let c=0;c<m;c++)for(let j=0;j<s.K;j++){
-      const v=s.lits[c*s.K+j]>>1,i=n+c,dx=x[i]-x[v],dy=y[i]-y[v],d=Math.sqrt(dx*dx+dy*dy)+1e-9,f=d/k;
-      fx[i]-=dx*f;fy[i]-=dy*f;fx[v]+=dx*f;fy[v]+=dy*f;}
-    const temp=0.12*asp*(1-it/IT)+0.002;
-    for(let i=0;i<tot;i++){fx[i]-=x[i]*0.08/asp;fy[i]-=y[i]*0.08;
-      const d=Math.sqrt(fx[i]*fx[i]+fy[i]*fy[i])+1e-9,st=Math.min(d,temp);x[i]+=fx[i]/d*st;y[i]+=fy[i]/d*st;}
-  }
-  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
-  for(let i=0;i<tot;i++){x0=Math.min(x0,x[i]);x1=Math.max(x1,x[i]);y0=Math.min(y0,y[i]);y1=Math.max(y1,y[i]);}
-  for(let i=0;i<tot;i++){x[i]=(x[i]-x0)/((x1-x0)||1);y[i]=(y[i]-y0)/((y1-y0)||1);}
-  return {x,y};
-}
 function fgNew(){
   const N=+$('fgN').value,a=+$('fgA').value;
-  FG.solver=new Solver(S.K,N,a,S.p,seedCounter++);FG.pos=fgLayout(FG.solver);FG.last=null;FG.manual=null;
-  FG.running=false;fgBtn();fgMessage();fgDraw();
+  FG.solver=new Solver(S.K,N,a,S.p,seedCounter++);FG.last=null;FG.manual=null;FG.mine=0;FG.running=false;fgBtn();
+  const s=FG.solver,vb=$('vars'),cb=$('clauses');vb.innerHTML='';cb.innerHTML='';FG.chips=[];FG.cards=[];FG.lits=[];
+  for(let v=0;v<N;v++){
+    const b=document.createElement('button');b.className='vchip';b.dataset.v=v;
+    b.innerHTML='<span class="nm">x<sub>'+(v+1)+'</sub></span><span class="val"></span><span class="dl"></span>';
+    vb.appendChild(b);FG.chips.push(b);
+  }
+  for(let c=0;c<s.M;c++){
+    const d=document.createElement('div');d.className='cl';
+    let html='<span class="id">C'+(c+1)+'</span><span class="par">(</span>';
+    for(let j=0;j<s.K;j++){const l=s.lits[c*s.K+j],v=l>>1;
+      if(j)html+='<span class="or">∨</span>';
+      html+='<button class="lit" data-v="'+v+'" title="Toggle x'+(v+1)+'">'+(l&1?'¬':'')+'x<sub>'+(v+1)+'</sub></button>';}
+    d.innerHTML=html+'<span class="par">)</span>';cb.appendChild(d);FG.cards.push(d);
+    FG.lits.push([...d.querySelectorAll('.lit')]);
+  }
+  fgDraw();fgMessage();
 }
 function fgBtn(){$('fgRun').textContent=FG.running?'Pause':'Run';}
+function fgDraw(){
+  const s=FG.solver;if(!s||!FG.chips.length)return;
+  const only=$('onlyU').checked,L=FG.manual==null?FG.last:null;
+  for(let v=0;v<s.N;v++){const b=FG.chips[v],on=s.assign[v],d=s.delta(v);
+    b.classList.toggle('on',!!on);b.classList.toggle('hl',FG.hv===v);b.classList.toggle('tried',!!(L&&L.v===v));
+    b.children[1].textContent=on?'TRUE':'FALSE';b.children[2].textContent='Δ '+(d>0?'+'+d:d<0?'−'+(-d):'0');
+    b.setAttribute('aria-pressed',on?'true':'false');b.setAttribute('aria-label','x'+(v+1)+' is '+(on?'true':'false')+'; flipping changes unsatisfied count by '+d);
+  }
+  for(let c=0;c<s.M;c++){const card=FG.cards[c],sc=s.sat[c];
+    card.className='cl'+(sc===0?' s0':sc===1?' s1':'')+(L&&L.c===c?' pick':'')+(only&&sc>0?' hide':'');
+    FG.lits[c].forEach((el,j)=>{const l=s.lits[c*s.K+j];el.classList.toggle('t',!!(s.assign[l>>1]^(l&1)));el.classList.toggle('hl',FG.hv===(l>>1));});
+  }
+  $('fgMu').textContent=s.nU;$('fgM').textContent=s.M;$('fgTr').textContent=s.trials;$('fgMine').textContent=FG.mine;
+}
 function fgMessage(){
   const s=FG.solver,el=$('fgMsg');
-  $('fgMu').textContent=s.nU;$('fgM').textContent=s.M;$('fgTr').textContent=s.trials;$('fgT').textContent=s.t.toFixed(2);
-  if(s.nU===0){el.textContent=s.trials||FG.manual!=null?'Solved: every clause has at least one true literal.':'This instance started out satisfied. Try a higher α or a new instance.';return;}
-  if(FG.manual!=null){el.textContent='You flipped x'+(FG.manual+1)+'. '+s.nU+' clause'+(s.nU===1?' is':'s are')+' still unsatisfied.';return;}
+  if(s.nU===0){el.innerHTML=(FG.mine||s.trials)?'<strong>Solved.</strong> Every clause has at least one true literal.':'This assignment already satisfies everything. Try a higher <var>α</var> or a new instance.';return;}
+  if(FG.manual!=null){el.innerHTML='You flipped '+xs(FG.manual)+'. '+s.nU+' clause'+(s.nU===1?' is':'s are')+' still unsatisfied.';return;}
   const L=FG.last;
-  if(!L){el.textContent='Press Run or Step to let ASAT work, or click a variable to flip it.';return;}
-  const net=L.d>0?'would add '+L.d+' unsatisfied clause'+(L.d>1?'s':'')+(L.acc?', flipped anyway with probability p':', so the flip was rejected'):L.d<0?'removes '+(-L.d)+' unsatisfied clause'+(L.d<-1?'s':'')+', so it was flipped':'leaves the count unchanged, so it was flipped';
-  el.textContent='Picked unsatisfied clause C'+(L.c+1)+' and tried x'+(L.v+1)+': the flip '+net+'.';
-}
-function fgGeom(){
-  const s=FG.solver,W=fgCv.clientWidth,H=fgCv.clientHeight,tot=s.N+s.M;
-  const r=Math.max(6,Math.min(13,Math.sqrt(W*H/tot)*0.16)),sq=Math.max(5,r*0.85),m=r+8;
-  return {W,H,r,sq,X:i=>m+FG.pos.x[i]*(W-2*m),Y:i=>m+FG.pos.y[i]*(H-2*m)};
-}
-function fgDraw(){
-  const s=FG.solver;if(!s||!FG.pos)return;
-  const dpr=window.devicePixelRatio||1,g=fgGeom(),{W,H,r,sq,X,Y}=g;if(!W)return;
-  if(fgCv.width!==Math.round(W*dpr)||fgCv.height!==Math.round(H*dpr)){fgCv.width=Math.round(W*dpr);fgCv.height=Math.round(H*dpr);}
-  const ctx=fgCv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
-  const cT=css('--solid'),cF=css('--muted'),cU=css('--unsat'),cFr=css('--fragile'),cFl=css('--flash'),ink=css('--ink'),panel=css('--panel');
-  const n=s.N,K=s.K,L=FG.last;
-  // edges: false literals first, true on top
-  for(const pass of [0,1])for(let c=0;c<s.M;c++)for(let j=0;j<K;j++){
-    const l=s.lits[c*K+j],v=l>>1,neg=l&1,tr=s.assign[v]^neg;if(tr!==pass)continue;
-    ctx.beginPath();ctx.moveTo(X(v),Y(v));ctx.lineTo(X(n+c),Y(n+c));
-    ctx.setLineDash(neg?[5,4]:[]);
-    if(tr){ctx.strokeStyle=cT;ctx.lineWidth=3.5;ctx.globalAlpha=1;}
-    else if(s.sat[c]===0){ctx.strokeStyle=cU;ctx.lineWidth=1.6;ctx.globalAlpha=.85;}
-    else{ctx.strokeStyle=cF;ctx.lineWidth=1;ctx.globalAlpha=.55;}
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);ctx.globalAlpha=1;
-  // clauses
-  for(let c=0;c<s.M;c++){
-    const x=X(n+c),y=Y(n+c);ctx.fillStyle=s.sat[c]===0?cU:s.sat[c]===1?cFr:cT;
-    ctx.fillRect(x-sq/2,y-sq/2,sq,sq);
-    if(L&&L.c===c&&!FG.manual){ctx.strokeStyle=cFl;ctx.lineWidth=3;ctx.strokeRect(x-sq/2-3,y-sq/2-3,sq+6,sq+6);}
-  }
-  // variables
-  ctx.font='500 '+Math.round(r*0.95)+'px "Schibsted Grotesk",system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-  for(let v=0;v<n;v++){
-    const x=X(v),y=Y(v),on=s.assign[v];
-    ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle=on?ink:panel;ctx.fill();ctx.lineWidth=1.8;ctx.strokeStyle=ink;ctx.stroke();
-    const hl=(L&&L.v===v&&FG.manual==null)||FG.manual===v;
-    if(hl){ctx.beginPath();ctx.arc(x,y,r+4,0,7);ctx.strokeStyle=cFl;ctx.lineWidth=3;if(L&&!L.acc&&FG.manual==null)ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);}
-    if(r>=8){ctx.fillStyle=on?panel:ink;ctx.fillText(String(v+1),x,y+.5);}
-  }
+  if(!L){el.innerHTML=s.nU+' clause'+(s.nU===1?' is':'s are')+' unsatisfied. Toggle variables to fix them, or press Step.';return;}
+  const net=L.d>0?'would add '+L.d+' unsatisfied clause'+(L.d>1?'s':'')+(L.acc?', but was accepted anyway with probability <var>p</var>':', so it was rejected'):L.d<0?'removes '+(-L.d)+' unsatisfied clause'+(L.d<-1?'s':'')+', so it was accepted':'leaves the count unchanged, so it was accepted';
+  el.innerHTML='ASAT picked unsatisfied clause C'+(L.c+1)+' and tried flipping '+xs(L.v)+': the flip '+net+'.';
 }
 function fgTrial(){const s=FG.solver;if(!s||s.nU===0)return;FG.manual=null;FG.last=s.trial();if(s.nU===0){FG.running=false;fgBtn();}}
+function fgToggle(v){const s=FG.solver;s.flip(v);FG.manual=v;FG.mine++;FG.last=null;if(s.nU===0){FG.running=false;fgBtn();}fgDraw();fgMessage();}
 $('fgN').oninput=()=>{fgSync();fgNew();};
 $('fgA').oninput=()=>{fgSync();fgNew();};
 $('fgSp').oninput=fgSync;
 $('fgNew').onclick=fgNew;
-$('fgStep').onclick=()=>{FG.running=false;fgBtn();fgTrial();fgMessage();fgDraw();};
-$('fgRun').onclick=()=>{if(FG.solver.nU===0)fgNew();FG.running=!FG.running;FG.lastT=performance.now();FG.acc=0;fgBtn();};
-fgCv.addEventListener('click',e=>{
-  const s=FG.solver;if(!s)return;const rect=fgCv.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top,g=fgGeom();
-  let best=-1,bd=Infinity;for(let v=0;v<s.N;v++){const d=Math.hypot(g.X(v)-mx,g.Y(v)-my);if(d<bd){bd=d;best=v;}}
-  if(best<0||bd>g.r+8)return;
-  s.flip(best);FG.manual=best;FG.last=null;if(s.nU===0){FG.running=false;fgBtn();}
-  fgMessage();fgDraw();
-});
+$('fgRand').onclick=()=>{const s=FG.solver;for(let v=0;v<s.N;v++)if(Math.random()<.5)s.flip(v);FG.manual=null;FG.last=null;fgDraw();fgMessage();};
+$('onlyU').onchange=fgDraw;
+$('fgStep').onclick=()=>{FG.running=false;fgBtn();fgTrial();fgDraw();fgMessage();};
+$('fgRun').onclick=()=>{if(FG.solver.nU===0)return;FG.running=!FG.running;FG.lastT=performance.now();FG.acc=0;fgBtn();};
+for(const box of [$('vars'),$('clauses')]){
+  box.addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b)fgToggle(+b.dataset.v);});
+  box.addEventListener('pointerover',e=>{const b=e.target.closest('[data-v]');const v=b?+b.dataset.v:-1;if(v!==FG.hv){FG.hv=v;fgDraw();}});
+  box.addEventListener('pointerleave',()=>{FG.hv=-1;fgDraw();});
+}
 function fgTick(now){
   if(!FG.running)return;
   FG.acc+=(now-FG.lastT)/1000*(+$('fgSp').value);FG.lastT=now;
   let did=false;while(FG.acc>=1&&FG.running){FG.acc-=1;fgTrial();did=true;}
-  if(did){fgMessage();fgDraw();}
+  if(did){fgDraw();fgMessage();}
 }
 
 /* ---------- loop ---------- */
