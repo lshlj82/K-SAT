@@ -22,13 +22,6 @@ Presets reproduce the three regimes of Table I in the paper:
 | 3-SAT (RandomWalkSAT) | 1.00 | 2.6705 | 1.0 | 0.5 | 0.5 | 2.0 |
 | 3-SAT (optimized ASAT) | 0.21 | 4.1855 | 1.0 | 1.0 | 1.0 | 3.0 |
 
-## Running it
-
-No build step and no dependencies beyond Google Fonts (optional; system fonts are used as fallback).
-
-- **Locally:** open `index.html` in any modern browser.
-- **GitHub Pages:** push this folder to a repository, then enable *Settings → Pages → Deploy from a branch* on the branch and folder containing `index.html`.
-
 ## Caveats
 
 Browser-sized systems (*N* in the hundreds to tens of thousands) are far smaller than those in the paper (up to 10<sup>6</sup> variables, *T*<sub>max</sub> = 10<sup>8</sup>). The paper notes serious finite-size effects below *N* ≈ 10<sup>3</sup>, so curve crossings in the sweep will drift from the quoted α<sub>c</sub>, most visibly for optimized ASAT. The rescaled solving-time plot omits the logarithmic corrections to scaling reported in the paper.
