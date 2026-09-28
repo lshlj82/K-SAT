@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Random K-SAT, one flip at a time</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Schibsted+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EEF1F3; --panel:#FFFFFF; --ink:#1B2A41; --muted:#5B6B7E; --rule:#CBD3DB;
+  --unsat:#C8364B; --fragile:#9FD3CC; --solid:#2E8C85; --flash:#D9A21B; --empty:#E3E8EC;
+  --s1:#A9D3CD; --s2:#5BB0A6; --s3:#2E7B8C; --s4:#2C4F7C; --s5:#1B2A41; --s6:#7A3E8E;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#111823; --panel:#18212E; --ink:#DCE3EA; --muted:#8B9AAB; --rule:#2B3645;
+    --unsat:#E3556E; --fragile:#2F6A63; --solid:#56B9AE; --flash:#F0BE3A; --empty:#1F2A38;
+    --s1:#3E6B66; --s2:#4FA59C; --s3:#6FB7D0; --s4:#9DB8E8; --s5:#DCE3EA; --s6:#C58BD6;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#111823; --panel:#18212E; --ink:#DCE3EA; --muted:#8B9AAB; --rule:#2B3645;
+  --unsat:#E3556E; --fragile:#2F6A63; --solid:#56B9AE; --flash:#F0BE3A; --empty:#1F2A38;
+  --s1:#3E6B66; --s2:#4FA59C; --s3:#6FB7D0; --s4:#9DB8E8; --s5:#DCE3EA; --s6:#C58BD6;
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:16px;line-height:1.5;font-variant-numeric:tabular-nums}
+main{max-width:1180px;margin:0 auto;padding:40px 24px 64px}
+var,.m{font-family:"Newsreader",Georgia,"Times New Roman",serif;font-style:italic;font-size:1.08em}
+h1{font-size:clamp(2rem,5vw,3.4rem);line-height:1.02;letter-spacing:-.025em;margin:0 0 16px;font-weight:700;max-width:14ch}
+h2{font-size:1.5rem;letter-spacing:-.01em;margin:0 0 6px;font-weight:700}
+.lede{font-family:"Newsreader",Georgia,serif;font-size:1.2rem;line-height:1.55;max-width:62ch;color:var(--ink);margin:0 0 8px}
+.cite{color:var(--muted);font-size:.9rem;margin:0}
+a{color:var(--solid);text-underline-offset:2px}
+.credit{margin-top:56px;padding-top:16px;border-top:1px solid var(--rule);color:var(--muted);font-size:.9rem}
+section{margin-top:48px}
+.sub{color:var(--muted);max-width:68ch;margin:0 0 20px}
+.grid{display:grid;grid-template-columns:290px 1fr;gap:24px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:18px}
+.ctl{margin-bottom:14px}
+.ctl label,.lab{display:flex;justify-content:space-between;font-size:.9rem;font-weight:500;margin-bottom:4px}
+.ctl label output{font-weight:400;color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--solid)}
+input[type=number]{width:100%;font:inherit;padding:6px 8px;border:1px solid var(--rule);border-radius:6px;background:var(--paper);color:var(--ink)}
+.seg{display:flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden}
+.seg button{flex:1;border:0;border-radius:0;background:transparent}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+button{font:inherit;font-weight:500;cursor:pointer;border:1px solid var(--rule);background:var(--panel);color:var(--ink);padding:8px 12px;border-radius:7px}
+button.primary{background:var(--solid);border-color:var(--solid);color:#fff}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--flash);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.presets{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.presets button{text-align:left;font-weight:400;font-size:.92rem;padding:8px 10px}
+.presets button[aria-pressed=true]{border-color:var(--solid);box-shadow:inset 3px 0 0 var(--solid)}
+.presets button b{font-weight:700}
+.check{display:flex;gap:8px;align-items:center;font-size:.9rem;margin-top:10px}
+.stage{display:flex;flex-direction:column;gap:16px;min-width:0}
+#latticeWrap{width:100%;min-height:120px}
+#lattice{display:block;width:100%}
+.readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:4px 16px}
+.readouts div span{display:block;font-size:.82rem;color:var(--muted)}
+.readouts div strong{font-size:1.25rem;font-weight:500}
+#status{font-weight:500}
+#status.solved{color:var(--solid)} #status.timeout{color:var(--unsat)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.85rem;color:var(--muted)}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+canvas.plot{display:block;width:100%;height:280px}
+.plotcap{font-size:.85rem;color:var(--muted);margin:4px 0 0}
+.sweepctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px 16px;align-items:end}
+.sizes{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.9rem}
+.plots2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:18px}
+@media (max-width:760px){.plots2{grid-template-columns:1fr}}
+.progress{height:4px;background:var(--rule);border-radius:2px;overflow:hidden;margin-top:14px}
+.progress div{height:100%;width:0;background:var(--solid);transition:width .2s}
+.prose{max-width:68ch}
+.prose p{font-family:"Newsreader",Georgia,serif;font-size:1.08rem;line-height:1.62}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;font-size:.92rem;margin-top:8px;min-width:520px}
+th,td{padding:6px 12px;border-bottom:1px solid var(--rule);text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--muted)}
+.collapse{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:end;margin-top:14px}
+.collapse .ctl{margin:0;width:110px}
+@media (prefers-reduced-motion:reduce){.progress div{transition:none}}
+#fg{display:block;width:100%;height:clamp(360px,58vw,580px);cursor:pointer;touch-action:manipulation}
+#fgMsg{min-height:3em;margin:10px 0 0;font-size:.95rem}
+.fglegend{display:grid;grid-template-columns:1fr;gap:6px;font-size:.87rem;color:var(--muted);margin-top:14px}
+.fglegend svg{vertical-align:middle;margin-right:8px;overflow:visible}
+.note{font-size:.85rem;color:var(--muted);margin:10px 0 0}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Random K-SAT, one flip at a time</h1>
+  <p class="lede">A random formula of <var>M</var> = <var>αN</var> clauses, each an OR of <var>K</var> random literals, is attacked by the ASAT local search. Watch the unsatisfied clauses die out — or refuse to — and sweep <var>α</var> to see the solvable/unsolvable transition sharpen as <var>N</var> grows.</p>
+  <p class="cite">Based on S. H. Lee, M. Ha, C. Jeon &amp; H. Jeong, <a href="https://doi.org/10.1103/PhysRevE.82.061109" target="_blank" rel="noopener">“Finite-size scaling in random <var>K</var>-satisfiability problems,” Phys. Rev. E <b>82</b>, 061109 (2010)</a>.</p>
+</header>
+
+<section id="single">
+  <h2>Watch one search</h2>
+  <p class="sub">Each cell is a clause. ASAT picks a random unsatisfied clause, tries flipping one of its <var>K</var> variables, and always accepts unless the number of unsatisfied clauses would rise — then it accepts with probability <var>p</var>.</p>
+  <div class="grid">
+    <div class="panel">
+      <div class="lab">Regimes from Table I</div>
+      <div class="presets" id="presets"></div>
+      <div class="ctl"><div class="lab">Clause size <var>K</var></div>
+        <div class="seg" id="kseg"><button data-k="2">2-SAT</button><button data-k="3">3-SAT</button></div></div>
+      <div class="ctl"><label for="nIn">Variables <var>N</var><output id="nOut"></output></label>
+        <input id="nIn" type="range" min="0" max="100" step="1"></div>
+      <div class="ctl"><label for="aIn">Clause density <var>α</var><output id="aOut"></output></label>
+        <input id="aIn" type="range" min="0.4" max="5" step="0.005"></div>
+      <div class="ctl"><label for="pIn">Noise <var>p</var><output id="pOut"></output></label>
+        <input id="pIn" type="range" min="0" max="1" step="0.01"></div>
+      <div class="ctl"><label for="spIn">Speed<output id="spOut"></output></label>
+        <input id="spIn" type="range" min="0" max="60" step="1"></div>
+      <div class="ctl"><label for="tmaxIn">Give up at <var>T</var><sub>max</sub></label>
+        <input id="tmaxIn" type="number" min="1" step="100" value="20000"></div>
+      <div class="row">
+        <button class="primary" id="runBtn">Run</button>
+        <button id="stepBtn">Step</button>
+        <button id="newBtn">New instance</button>
+      </div>
+      <label class="check"><input type="checkbox" id="keepIn" checked> Keep earlier traces on the plot</label>
+    </div>
+
+    <div class="stage">
+      <div class="panel">
+        <div id="latticeWrap"><canvas id="lattice" aria-label="Grid of clauses coloured by satisfaction state"></canvas></div>
+        <div class="legend" style="margin-top:10px">
+          <span><i style="background:var(--unsat)"></i>Unsatisfied</span>
+          <span><i style="background:var(--fragile)"></i>Held by one literal</span>
+          <span><i style="background:var(--solid)"></i>Held by two or more</span>
+          <span><i style="background:var(--flash)"></i>Touched by the last flip (slow speeds)</span>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="readouts">
+          <div><span>Status</span><strong id="status">Ready</strong></div>
+          <div><span>Time <var>t</var></span><strong id="rT">0</strong></div>
+          <div><span>Trial flips</span><strong id="rF">0</strong></div>
+          <div><span>Unsatisfied <var>M</var><sub>u</sub></span><strong id="rMu">–</strong></div>
+          <div><span><var>ρ</var><sub>u</sub> = <var>M</var><sub>u</sub>/<var>N</var></span><strong id="rRho">–</strong></div>
+        </div>
+      </div>
+      <div class="panel">
+        <canvas class="plot" id="tracePlot" aria-label="Log-log plot of unsatisfied clause density against time"></canvas>
+        <p class="plotcap">Density of unsatisfied clauses against time, log–log. Dashed line: the paper's decay <var>ρ</var><sub>u</sub> ∼ <var>t</var><sup>−δ</sup> at <var>α</var><sub>c</sub> for the selected regime. Time advances by 1/<var>M</var><sub>u</sub> per trial flip, as in the paper.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="graph">
+  <h2>See the factor graph</h2>
+  <p class="sub">Circles are variables, squares are clauses, and each edge is a literal: a variable appearing in a clause, dashed when it appears negated. A literal is thick when it is currently true, so every satisfied clause has at least one thick edge. Click a variable to flip it yourself.</p>
+  <div class="grid">
+    <div class="panel">
+      <div class="ctl"><label for="fgN">Variables <var>N</var><output id="fgNOut"></output></label>
+        <input id="fgN" type="range" min="6" max="60" step="1" value="16"></div>
+      <div class="ctl"><label for="fgA">Clause density <var>α</var><output id="fgAOut"></output></label>
+        <input id="fgA" type="range" min="0.4" max="5" step="0.05" value="1"></div>
+      <div class="ctl"><label for="fgSp">Speed<output id="fgSpOut"></output></label>
+        <input id="fgSp" type="range" min="1" max="40" step="1" value="4"></div>
+      <div class="row">
+        <button class="primary" id="fgRun">Run</button>
+        <button id="fgStep">Step</button>
+        <button id="fgNew">New instance</button>
+      </div>
+      <p class="note">Clause size <var>K</var> and noise <var>p</var> come from the controls above.</p>
+      <div class="fglegend">
+        <span><svg width="16" height="16"><circle cx="8" cy="8" r="7" fill="var(--ink)"/></svg>Variable set to true</span>
+        <span><svg width="16" height="16"><circle cx="8" cy="8" r="6.5" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.5"/></svg>Variable set to false</span>
+        <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--solid)" stroke-width="3.5"/></svg>True literal, satisfies its clause</span>
+        <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--muted)" stroke-width="1"/></svg>False literal</span>
+        <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/></svg>Negated literal (¬<var>x</var>)</span>
+        <span><svg width="16" height="16"><rect x="2" y="2" width="12" height="12" fill="var(--unsat)"/></svg>Unsatisfied clause</span>
+        <span><svg width="16" height="16"><rect x="2" y="2" width="12" height="12" fill="var(--fragile)"/></svg>Clause held by one literal</span>
+        <span><svg width="16" height="16"><rect x="2" y="2" width="12" height="12" fill="var(--solid)"/></svg>Clause held by two or more</span>
+        <span><svg width="16" height="16"><circle cx="8" cy="8" r="6" fill="none" stroke="var(--flash)" stroke-width="3"/></svg>Last clause picked and variable tried</span>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="panel">
+        <canvas id="fg" aria-label="Factor graph of variables and clauses; click a variable to flip it"></canvas>
+        <p id="fgMsg"></p>
+        <div class="readouts" style="margin-top:10px">
+          <div><span>Unsatisfied <var>M</var><sub>u</sub></span><strong id="fgMu">–</strong></div>
+          <div><span>Clauses <var>M</var></span><strong id="fgM">–</strong></div>
+          <div><span>Trial flips</span><strong id="fgTr">0</strong></div>
+          <div><span>Time <var>t</var></span><strong id="fgT">0</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="sweep">
+  <h2>Sweep <var>α</var> and watch the transition sharpen</h2>
+  <p class="sub">For every size and density, fresh random instances are solved from random starts. The solved fraction <var>P</var><sub>s</sub> drops from 1 to 0 across <var>α</var><sub>c</sub>, more abruptly for larger <var>N</var>. Rescaling the axis by <var>N</var><sup>1/ν̄</sup> should make the curves fall on top of each other.</p>
+  <div class="panel">
+    <div class="sweepctl">
+      <div><div class="lab">Sizes <var>N</var></div><div class="sizes" id="sizes"></div></div>
+      <div class="ctl" style="margin:0"><label for="swFrom"><span><var>α</var> from</span></label><input id="swFrom" type="number" step="0.05"></div>
+      <div class="ctl" style="margin:0"><label for="swTo"><span><var>α</var> to</span></label><input id="swTo" type="number" step="0.05"></div>
+      <div class="ctl" style="margin:0"><label for="swSteps">Points</label><input id="swSteps" type="number" min="3" max="41" value="13"></div>
+      <div class="ctl" style="margin:0"><label for="swSamp">Samples per point</label><input id="swSamp" type="number" min="4" max="1000" value="40"></div>
+      <div class="ctl" style="margin:0"><label for="swTmax"><span><var>T</var><sub>max</sub></span></label><input id="swTmax" type="number" min="10" step="100" value="2000"></div>
+      <div class="row"><button class="primary" id="swRun">Run sweep</button><button id="swStop">Stop</button></div>
+    </div>
+    <p class="plotcap" id="swInfo" style="margin-top:12px">Uses the current <var>K</var> and <var>p</var> from the controls above.</p>
+    <div class="progress"><div id="swBar"></div></div>
+    <div class="collapse">
+      <label class="check" style="margin:0"><input type="checkbox" id="colIn"> Rescale to <var>ε</var><var>N</var><sup>1/ν̄</sup> with <var>ε</var> = (<var>α</var>−<var>α</var><sub>c</sub>)/<var>α</var><sub>c</sub></label>
+      <div class="ctl"><label for="acIn"><span><var>α</var><sub>c</sub></span></label><input id="acIn" type="number" step="0.001"></div>
+      <div class="ctl"><label for="nuIn"><span>ν̄</span></label><input id="nuIn" type="number" step="0.1"></div>
+      <div class="ctl"><label for="zIn"><span><var>z̄</var></span></label><input id="zIn" type="number" step="0.1"></div>
+    </div>
+    <div class="plots2">
+      <div><canvas class="plot" id="psPlot" aria-label="Solved fraction against clause density"></canvas>
+        <p class="plotcap">Fraction of solved samples <var>P</var><sub>s</sub>.</p></div>
+      <div><canvas class="plot" id="tauPlot" aria-label="Median solving time against clause density"></canvas>
+        <p class="plotcap">Median solving time <var>τ</var><sub>H</sub> (defined while <var>P</var><sub>s</sub> ≥ ½). Rescaled view divides by <var>N</var><sup><var>z̄</var></sup>; the paper's log corrections are left out.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="prose" id="about">
+  <h2>What the paper finds</h2>
+  <p>The authors treat a solution as an absorbing state and the unsatisfied-clause density <var>ρ</var><sub>u</sub> as the order parameter of a nonequilibrium absorbing phase transition. Below the algorithm's threshold <var>α</var><sub>c</sub> the search falls into a solution in a time that stays bounded as <var>N</var> grows; above it, <var>ρ</var><sub>u</sub> settles to a finite value and the search wanders forever.</p>
+  <p>The finite-size scaling exponent ν̄ sets how fast the transition window closes, as <var>N</var><sup>−1/ν̄</sup>. For 3-SAT they find two values depending on where the algorithm's threshold falls: pure random walk (<var>p</var> = 1) stalls well below the clustering threshold <var>α</var><sub>d</sub> ≈ 3.86 and shows mean-field directed-percolation exponents (ν̄ = 2), while optimized ASAT (<var>p</var> ≈ 0.21) reaches beyond <var>α</var><sub>d</sub> and shows the same percolation exponents as 2-SAT (ν̄ = 3). The SAT–UNSAT threshold itself sits at <var>α</var><sub>s</sub> ≈ 4.267.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Problem</th><th><var>p</var></th><th><var>α</var><sub>c</sub></th><th><var>θ</var></th><th><var>z̄</var></th><th><var>δ</var></th><th>ν̄</th></tr></thead>
+    <tbody>
+      <tr><td>2-SAT</td><td>any &gt; 0</td><td>1.002</td><td>1.0</td><td>1.0</td><td>1.0</td><td>3.0</td></tr>
+      <tr><td>3-SAT (RandomWalkSAT)</td><td>1.00</td><td>2.6705</td><td>1.0</td><td>0.5</td><td>0.5</td><td>2.0</td></tr>
+      <tr><td>3-SAT (optimized ASAT)</td><td>0.21</td><td>4.1855</td><td>1.0</td><td>1.0</td><td>1.0</td><td>3.0</td></tr>
+    </tbody>
+  </table></div>
+  <p>Browser-sized systems (<var>N</var> in the hundreds) sit in what the paper calls the regime of serious finite-size effects, so expect the curve crossings to drift from the quoted <var>α</var><sub>c</sub>, especially for optimized ASAT, where the paper also needed up to 10<sup>6</sup> variables and <var>T</var><sub>max</sub> = 10<sup>8</sup>.</p>
+</section>
+<footer class="credit">Created by Claude Opus 5.5 (Anthropic) from the paper by <a href="https://doi.org/10.1103/PhysRevE.82.061109" target="_blank" rel="noopener">Lee, Ha, Jeon &amp; Jeong (2010)</a>.</footer>
+</main>
+
+<script>
+(function(){
+"use strict";
+/* ---------- RNG ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+let seedCounter = (Date.now() ^ 0x5bd1e995) >>> 0;
+
+/* ---------- Solver: random K-SAT + ASAT ---------- */
+class Solver{
+  constructor(K,N,alpha,p,seed){
+    const rng = mulberry32(seed);
+    const M = Math.max(1, Math.round(alpha*N));
+    this.K=K; this.N=N; this.M=M; this.p=p; this.rng=rng;
+    const lits = new Int32Array(M*K), deg = new Int32Array(N);
+    for(let c=0;c<M;c++){
+      for(let j=0;j<K;j++){
+        let v, dup;
+        do{ v=(rng()*N)|0; dup=false; for(let q=0;q<j;q++) if((lits[c*K+q]>>1)===v){dup=true;break;} }while(dup);
+        lits[c*K+j]=(v<<1)|(rng()<0.5?1:0); deg[v]++;
+      }
+    }
+    const occStart=new Int32Array(N+1);
+    for(let v=0;v<N;v++) occStart[v+1]=occStart[v]+deg[v];
+    const cur=occStart.slice(0,N), occ=new Int32Array(M*K);
+    for(let c=0;c<M;c++) for(let j=0;j<K;j++){const l=lits[c*K+j], v=l>>1; occ[cur[v]++]=(c<<1)|(l&1);}
+    const assign=new Uint8Array(N); for(let v=0;v<N;v++) assign[v]=rng()<0.5?1:0;
+    const sat=new Uint8Array(M), unsat=new Int32Array(M), upos=new Int32Array(M).fill(-1);
+    let nU=0;
+    for(let c=0;c<M;c++){
+      let s=0; for(let j=0;j<K;j++){const l=lits[c*K+j]; if(assign[l>>1]^(l&1)) s++;}
+      sat[c]=s; if(s===0){unsat[nU]=c; upos[c]=nU; nU++;}
+    }
+    Object.assign(this,{lits,occStart,occ,assign,sat,unsat,upos,nU});
+    this.t=0; this.trials=0; this.status=nU===0?'solved':'running'; this.solveTime=nU===0?0:null;
+    this.nextRec=0; this.touch=null; this.stamp=0;
+  }
+  delta(v){
+    const a=this.assign[v],occ=this.occ,sat=this.sat;let d=0;
+    for(let i=this.occStart[v];i<this.occStart[v+1];i++){const o=occ[i],cc=o>>1;if(a^(o&1)){if(sat[cc]===1)d++;}else if(sat[cc]===0)d--;}
+    return d;
+  }
+  flip(v){
+    const a=this.assign[v],occ=this.occ,sat=this.sat,unsat=this.unsat,upos=this.upos;let nU=this.nU;
+    for(let i=this.occStart[v];i<this.occStart[v+1];i++){
+      const o=occ[i],cc=o>>1;
+      if(a^(o&1)){if(--sat[cc]===0){unsat[nU]=cc;upos[cc]=nU;nU++;}}
+      else if(sat[cc]++===0){const pos=upos[cc],last=unsat[--nU];unsat[pos]=last;upos[last]=pos;upos[cc]=-1;}
+    }
+    this.assign[v]=a^1;this.nU=nU;
+    this.status=nU===0?'solved':'running';if(nU===0)this.solveTime=this.t;
+  }
+  trial(){
+    if(this.nU===0)return null;
+    const c=this.unsat[(this.rng()*this.nU)|0],v=this.lits[c*this.K+((this.rng()*this.K)|0)]>>1;
+    const d=this.delta(v);this.t+=1/this.nU;this.trials++;
+    const acc=d<=0||this.rng()<this.p;if(acc)this.flip(v);
+    return {c,v,d,acc};
+  }
+  run(maxTrials,Tmax,rec){
+    if(this.status!=='running') return;
+    const K=this.K,p=this.p,rng=this.rng,lits=this.lits,occStart=this.occStart,occ=this.occ,
+          assign=this.assign,sat=this.sat,unsat=this.unsat,upos=this.upos,touch=this.touch,stamp=this.stamp;
+    let nU=this.nU,t=this.t,n=0;
+    while(n<maxTrials){
+      if(nU===0){this.status='solved';this.solveTime=t;break;}
+      if(t>=Tmax){this.status='timeout';break;}
+      const c=unsat[(rng()*nU)|0];
+      const v=lits[c*K+((rng()*K)|0)]>>1;
+      const a=assign[v], s=occStart[v], e=occStart[v+1];
+      let d=0;
+      for(let i=s;i<e;i++){const o=occ[i],cc=o>>1; if(a^(o&1)){ if(sat[cc]===1) d++; } else if(sat[cc]===0) d--; }
+      t+=1/nU;
+      if(d<=0 || rng()<p){
+        for(let i=s;i<e;i++){
+          const o=occ[i],cc=o>>1;
+          if(a^(o&1)){ if(--sat[cc]===0){unsat[nU]=cc;upos[cc]=nU;nU++;} }
+          else if(sat[cc]++===0){const pos=upos[cc],last=unsat[--nU];unsat[pos]=last;upos[last]=pos;upos[cc]=-1;}
+          if(touch) touch[cc]=stamp;
+        }
+        assign[v]=a^1;
+      }
+      n++;
+      if(rec && t>=this.nextRec){rec(t,nU);this.nextRec=t*1.03;}
+    }
+    this.nU=nU;this.t=t;this.trials+=n;
+    if(nU===0 && this.status==='running'){this.status='solved';this.solveTime=t;}
+  }
+}
+
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+const css=name=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+function hexRGB(h){h=h.replace('#','');if(h.length===3)h=h.split('').map(x=>x+x).join('');const n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255];}
+const fmt=n=>n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e4?(n/1e3).toFixed(1)+'k':String(Math.round(n));
+const fmtT=t=>t<10?t.toFixed(3):t<1000?t.toFixed(1):fmt(t);
+const nFromSlider=v=>Math.round(50*Math.pow(400,v/100));
+const sliderFromN=n=>Math.round(100*Math.log(n/50)/Math.log(400));
+const speedFromSlider=v=>Math.max(1,Math.round(Math.pow(10,v/10)));
+const SERIES=['--s1','--s2','--s3','--s4','--s5','--s6'];
+
+/* ---------- plotting ---------- */
+function niceStep(r){const e=Math.pow(10,Math.floor(Math.log10(r)));const f=r/e;return(f<1.5?1:f<3?2:f<7?5:10)*e;}
+function parseRich(s){const out=[];let i=0;while(i<s.length){const ch=s[i];if((ch==='_'||ch==='^')&&i+1<s.length){let t;if(s[i+1]==='{'){const j=s.indexOf('}',i+2);t=s.slice(i+2,j);i=j+1;}else{t=s[i+1];i+=2;}out.push({t,k:ch==='_'?1:-1});}else{let j=i;while(j<s.length&&s[j]!=='_'&&s[j]!=='^')j++;out.push({t:s.slice(i,j),k:0});i=j;}}return out;}
+function drawRich(ctx,s,x,y,align,size,fam){
+  const segs=parseRich(s),f=k=>(k?Math.round(size*0.72):size)+'px '+fam;let w=0;
+  for(const g of segs){ctx.font=f(g.k);g.w=ctx.measureText(g.t).width+(g.k?1:0);w+=g.w;}
+  let cx=align==='center'?x-w/2:align==='right'?x-w:x;const ta=ctx.textAlign;ctx.textAlign='left';
+  for(const g of segs){ctx.font=f(g.k);ctx.fillText(g.t,cx+(g.k?1:0),y+(g.k===1?size*0.28:g.k===-1?-size*0.38:0));cx+=g.w;}
+  ctx.textAlign=ta;
+}
+const MATHF='"Newsreader",Georgia,serif';
+function drawPlot(cv,cfg){
+  const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
+  if(!W||!H) return;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);}
+  const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+  const ink=css('--ink'),muted=css('--muted'),rule=css('--rule');
+  const L=56,R=14,T=12,B=42,pw=W-L-R,ph=H-T-B;
+  const fx=cfg.xlog?Math.log10:v=>v, fy=cfg.ylog?Math.log10:v=>v;
+  const x0=fx(cfg.xmin),x1=fx(cfg.xmax),y0=fy(cfg.ymin),y1=fy(cfg.ymax);
+  const X=v=>L+(fx(v)-x0)/(x1-x0)*pw, Y=v=>T+ph-(fy(v)-y0)/(y1-y0)*ph;
+  ctx.font='12px "Schibsted Grotesk",system-ui,sans-serif';ctx.lineWidth=1;
+  function ticks(lo,hi,log){const out=[];if(log){for(let e=Math.floor(Math.log10(lo));e<=Math.ceil(Math.log10(hi));e++){const v=Math.pow(10,e);if(v>=lo*0.999&&v<=hi*1.001)out.push({v,e});}}
+    else{const s=niceStep((hi-lo)/5);for(let v=Math.ceil(lo/s)*s;v<=hi+s*1e-6;v+=s)out.push({v:Math.abs(v)<s*1e-9?0:v,s});}return out;}
+  function label(tk,log,x,y,align){
+    ctx.fillStyle=muted;ctx.textAlign=align;
+    if(log){ctx.textBaseline='middle';const base='10',ex=String(tk.e);ctx.font='12px "Schibsted Grotesk",system-ui,sans-serif';const bw=ctx.measureText(base).width;ctx.font='9px "Schibsted Grotesk",system-ui,sans-serif';const ew=ctx.measureText(ex).width;
+      let sx=align==='center'?x-(bw+ew)/2:align==='right'?x-(bw+ew):x;ctx.textAlign='left';ctx.font='12px "Schibsted Grotesk",system-ui,sans-serif';ctx.fillText(base,sx,y);ctx.font='9px "Schibsted Grotesk",system-ui,sans-serif';ctx.fillText(ex,sx+bw+1,y-5);ctx.font='12px "Schibsted Grotesk",system-ui,sans-serif';}
+    else{ctx.textBaseline='middle';const d=tk.s<1?Math.min(3,Math.ceil(-Math.log10(tk.s))):0;ctx.fillText(tk.v.toFixed(d),x,y);}
+  }
+  ctx.strokeStyle=rule;
+  for(const tk of ticks(cfg.xmin,cfg.xmax,cfg.xlog)){const x=X(tk.v);ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke();label(tk,cfg.xlog,x,T+ph+14,'center');}
+  for(const tk of ticks(cfg.ymin,cfg.ymax,cfg.ylog)){const y=Y(tk.v);ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.stroke();label(tk,cfg.ylog,L-6,y,'right');}
+  ctx.strokeStyle=muted;ctx.strokeRect(L,T,pw,ph);
+  ctx.fillStyle=ink;ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.font='italic 14px "Newsreader",Georgia,serif';
+  drawRich(ctx,cfg.xlabel,L+pw/2,H-8,'center',15,'italic '+MATHF);
+  ctx.save();ctx.translate(14,T+ph/2);ctx.rotate(-Math.PI/2);drawRich(ctx,cfg.ylabel,0,2,'center',15,'italic '+MATHF);ctx.restore();
+  ctx.save();ctx.beginPath();ctx.rect(L,T,pw,ph);ctx.clip();
+  for(const vl of cfg.vlines||[]){if(vl.x<cfg.xmin||vl.x>cfg.xmax)continue;const x=X(vl.x);ctx.strokeStyle=vl.color||muted;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ph);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=vl.color||muted;ctx.font='12px "Schibsted Grotesk",system-ui,sans-serif';drawRich(ctx,vl.label,x+4,T+14+(vl.row||0)*16,'left',14,'italic '+MATHF);}
+  for(const s of cfg.series){
+    const pts=s.pts.filter(q=>q&&q[1]!=null&&isFinite(fx(q[0]))&&isFinite(fy(q[1])));
+    if(!pts.length) continue;
+    ctx.strokeStyle=s.color;ctx.fillStyle=s.color;ctx.lineWidth=s.width||1.8;ctx.globalAlpha=s.alpha==null?1:s.alpha;ctx.setLineDash(s.dash||[]);
+    ctx.beginPath();pts.forEach((q,i)=>{const x=X(q[0]),y=Y(q[1]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();ctx.setLineDash([]);
+    if(s.marker) for(const q of pts){ctx.beginPath();ctx.arc(X(q[0]),Y(q[1]),3,0,7);ctx.fill();}
+    if(s.endTick){const q=s.endTick;const x=X(q);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,T+ph);ctx.lineTo(x,T+ph-10);ctx.stroke();}
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
+  if(cfg.legend&&cfg.legend.length){ctx.font='12px "Schibsted Grotesk",system-ui,sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';
+    let y=T+14;for(const lg of cfg.legend){ctx.fillStyle=lg.color;ctx.fillRect(L+pw-12,y-4,10,8);ctx.fillStyle=ink;drawRich(ctx,lg.label,L+pw-18,y,'right',12,'"Schibsted Grotesk",system-ui,sans-serif');y+=16;}}
+}
+
+/* ---------- presets (Table I) ---------- */
+const PRESETS=[
+  {name:'2-SAT, ASAT',p:0.5,K:2,alpha:1.0,ac:1.002,delta:1.0,nu:3,z:1,from:0.6,to:1.6,tmax:20000,sw:2000,desc:'<var>p</var> = ½, <var>α</var><sub>c</sub> ≈ 1.002'},
+  {name:'3-SAT, RandomWalkSAT',p:1,K:3,alpha:2.67,ac:2.6705,delta:0.5,nu:2,z:0.5,from:2.0,to:3.4,tmax:20000,sw:2000,desc:'<var>p</var> = 1, <var>α</var><sub>c</sub> ≈ 2.67'},
+  {name:'3-SAT, optimized ASAT',p:0.21,K:3,alpha:4.1855,ac:4.1855,delta:1.0,nu:3,z:1,from:3.4,to:4.5,tmax:20000,sw:3000,desc:'<var>p</var> = 0.21, <var>α</var><sub>c</sub> ≈ 4.19'}
+];
+let preset=PRESETS[0];
+
+/* ---------- state & UI ---------- */
+const S={K:2,N:1000,alpha:1.0,p:0.5};
+const live={solver:null,running:false,cur:null,traces:[],frame:1};
+const presetBox=$('presets');
+PRESETS.forEach((pr,i)=>{const b=document.createElement('button');b.innerHTML='<b>'+pr.name+'</b><br>'+pr.desc;b.onclick=()=>applyPreset(i);presetBox.appendChild(b);});
+function markPreset(){[...presetBox.children].forEach((b,i)=>b.setAttribute('aria-pressed',PRESETS[i]===preset));}
+function syncControls(){
+  $('nIn').value=sliderFromN(S.N);$('nOut').textContent=S.N.toLocaleString();
+  $('aIn').value=S.alpha;$('aOut').innerHTML=S.alpha.toFixed(3)+'  (<var>M</var> = '+Math.round(S.alpha*S.N).toLocaleString()+')';
+  $('pIn').value=S.p;$('pOut').textContent=S.p.toFixed(2);
+  [...$('kseg').children].forEach(b=>b.setAttribute('aria-pressed',+b.dataset.k===S.K));
+}
+function applyPreset(i){
+  preset=PRESETS[i];Object.assign(S,{K:preset.K,alpha:preset.alpha,p:preset.p});
+  $('tmaxIn').value=preset.tmax;$('swFrom').value=preset.from;$('swTo').value=preset.to;$('swTmax').value=preset.sw;
+  $('acIn').value=preset.ac;$('nuIn').value=preset.nu;$('zIn').value=preset.z;
+  markPreset();syncControls();live.traces=[];live.cur=null;newInstance(false);drawSweep();
+  $('fgA').value=preset.alpha;fgSync();fgNew();
+}
+function customised(){ // leaving a preset's exact settings keeps the preset for guide lines, but unmark it
+  const on=S.K===preset.K&&Math.abs(S.p-preset.p)<1e-9;
+  [...presetBox.children].forEach((b,i)=>b.setAttribute('aria-pressed',on&&PRESETS[i]===preset));
+}
+$('nIn').oninput=e=>{S.N=nFromSlider(+e.target.value);syncControls();newInstance(live.running);};
+$('aIn').oninput=e=>{S.alpha=+e.target.value;syncControls();newInstance(live.running);};
+$('pIn').oninput=e=>{S.p=+e.target.value;syncControls();if(live.solver)live.solver.p=S.p;if(FG.solver)FG.solver.p=S.p;customised();};
+$('kseg').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.K=+b.dataset.k;syncControls();newInstance(live.running);fgNew();customised();};
+$('spIn').oninput=e=>{$('spOut').textContent=speedFromSlider(+e.target.value).toLocaleString()+' flips/frame';};
+$('spIn').value=22;$('spIn').oninput({target:$('spIn')});
+$('runBtn').onclick=()=>{
+  if(!live.solver||live.solver.status!=='running'){newInstance(true);return;}
+  live.running=!live.running;updateRunBtn();
+};
+$('stepBtn').onclick=()=>{
+  if(!live.solver||live.solver.status!=='running') newInstance(false);
+  live.running=false;updateRunBtn();live.frame++;live.solver.stamp=live.frame;live.flashOn=true;
+  live.solver.run(1,+$('tmaxIn').value||1e9,record);render();
+};
+$('newBtn').onclick=()=>newInstance(live.running);
+function updateRunBtn(){$('runBtn').textContent=live.running?'Pause':(live.solver&&live.solver.status==='running'&&live.solver.trials>0?'Resume':'Run');}
+
+function record(t,nU){if(live.cur)live.cur.pts.push([t,nU/live.solver.N]);}
+function newInstance(run){
+  if(live.cur&&live.cur.pts.length>1&&$('keepIn').checked){live.traces.push(live.cur);if(live.traces.length>6)live.traces.shift();}
+  if(!$('keepIn').checked) live.traces=[];
+  live.solver=new Solver(S.K,S.N,S.alpha,S.p,seedCounter++);
+  live.solver.touch=new Uint32Array(live.solver.M);
+  live.cur={pts:[],N:S.N,alpha:S.alpha,solvedAt:null};
+  live.running=!!run;layoutLattice();updateRunBtn();render();
+}
+
+/* ---------- lattice ---------- */
+const lat=$('lattice'),latWrap=$('latticeWrap');
+const LAY={cols:1,rows:1,cs:1,W:0,H:0};
+let COLORS={};
+function readColors(){COLORS={unsat:hexRGB(css('--unsat')),fragile:hexRGB(css('--fragile')),solid:hexRGB(css('--solid')),flash:hexRGB(css('--flash')),empty:hexRGB(css('--empty'))};}
+function layoutLattice(){
+  const W=latWrap.clientWidth||600;const Ht=Math.max(140,Math.min(360,W*0.48));
+  const M=live.solver?live.solver.M:1;
+  let cols=Math.max(1,Math.ceil(Math.sqrt(M*W/Ht)));let rows=Math.ceil(M/cols);
+  let cs=Math.min(W/cols,Ht/rows,30);
+  if(cs*cols<W*0.98&&cs<30){cols=Math.max(1,Math.floor(W/cs));rows=Math.ceil(M/cols);cs=Math.min(W/cols,30);}
+  Object.assign(LAY,{cols,rows,cs,W:cols*cs,H:rows*cs});
+  const dpr=window.devicePixelRatio||1;
+  lat.style.height=LAY.H+'px';lat.style.width=LAY.W+'px';
+  lat.width=Math.round(LAY.W*dpr);lat.height=Math.round(LAY.H*dpr);
+}
+const off=document.createElement('canvas');
+function drawLattice(){
+  const s=live.solver;if(!s)return;
+  const ctx=lat.getContext('2d'),dpr=window.devicePixelRatio||1;
+  const {cols,rows,cs}=LAY,M=s.M,sat=s.sat,touch=s.touch,fr=live.frame,flash=live.flashOn;
+  const col=c=>flash&&touch[c]===fr?COLORS.flash:sat[c]===0?COLORS.unsat:sat[c]===1?COLORS.fragile:COLORS.solid;
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,LAY.W,LAY.H);
+  if(cs>=4&&M<=6000){
+    const g=cs>=10?2:1;
+    for(let c=0;c<M;c++){const k=col(c);ctx.fillStyle='rgb('+k[0]+','+k[1]+','+k[2]+')';ctx.fillRect((c%cols)*cs,Math.floor(c/cols)*cs,cs-g,cs-g);}
+  }else{
+    off.width=cols;off.height=rows;const octx=off.getContext('2d');const img=octx.createImageData(cols,rows),d=img.data;
+    for(let i=0;i<cols*rows;i++){const k=i<M?col(i):COLORS.empty;d[i*4]=k[0];d[i*4+1]=k[1];d[i*4+2]=k[2];d[i*4+3]=i<M?255:0;}
+    octx.putImageData(img,0,0);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,0,0,LAY.W,LAY.H);
+  }
+}
+
+/* ---------- live render ---------- */
+function render(){
+  drawLattice();
+  const s=live.solver;if(!s)return;
+  $('rT').textContent=fmtT(s.t);$('rF').textContent=fmt(s.trials);$('rMu').textContent=s.nU.toLocaleString();$('rRho').textContent=(s.nU/s.N).toFixed(5);
+  const st=$('status');st.className=s.status==='running'?'':s.status;
+  st.innerHTML=s.status==='solved'?'Solved at <var>t</var> = '+fmtT(s.solveTime):s.status==='timeout'?'Gave up at <var>T</var><sub>max</sub>':live.running?'Searching':s.trials?'Paused':'Ready';
+  drawTrace();
+}
+function drawTrace(){
+  const all=live.traces.concat(live.cur?[live.cur]:[]);
+  let xmin=1e-2,xmax=10,ymin=1e-3,ymax=1;
+  const pts=all.flatMap(tr=>tr.pts);
+  if(pts.length){xmin=Math.min(...pts.map(q=>q[0]));xmax=Math.max(...pts.map(q=>q[0]));const ys=pts.map(q=>q[1]).filter(y=>y>0);ymin=Math.min(...ys);ymax=Math.max(...ys);}
+  xmin=Math.pow(10,Math.floor(Math.log10(Math.max(xmin,1e-4))));xmax=Math.pow(10,Math.ceil(Math.log10(Math.max(xmax,xmin*100))));
+  ymin=Math.pow(10,Math.floor(Math.log10(ymin||1e-4)));ymax=Math.pow(10,Math.ceil(Math.log10(ymax||1)));if(ymax/ymin<100)ymin=ymax/100;
+  const series=[];
+  live.traces.forEach(tr=>series.push({pts:tr.pts,color:css('--muted'),alpha:.45,width:1.2}));
+  if(live.cur){series.push({pts:live.cur.pts,color:css('--unsat'),width:2,endTick:live.solver.status==='solved'?live.solver.solveTime:null});}
+  // guide line t^-delta anchored to current trace near t=1
+  if(live.cur&&live.cur.pts.length>3){
+    const ref=live.cur.pts.find(q=>q[0]>=1)||live.cur.pts[live.cur.pts.length-1];
+    const d=preset.delta,A=ref[1]*Math.pow(ref[0],d);
+    series.push({pts:[[xmin,A*Math.pow(xmin,-d)],[xmax,A*Math.pow(xmax,-d)]],color:css('--ink'),dash:[6,5],width:1.2,alpha:.7});
+  }
+  drawPlot($('tracePlot'),{xlog:true,ylog:true,xmin,xmax,ymin,ymax,xlabel:'t',ylabel:'ρ_u',series,
+    legend:[{label:'current run',color:css('--unsat')},{label:'slope −δ = −'+preset.delta,color:css('--ink')}]});
+}
+
+/* ---------- sweep ---------- */
+const SIZES=[50,100,200,400,800,1600];const sizeBox=$('sizes');
+SIZES.forEach(n=>{const l=document.createElement('label');l.innerHTML='<input type="checkbox" value="'+n+'"'+([100,200,400,800].includes(n)?' checked':'')+'> '+n;sizeBox.appendChild(l);});
+const SW={running:false,tasks:[],ti:0,sample:0,solver:null,results:{},sizes:[],alphas:[],K:2,p:.5,total:0,done:0};
+$('swRun').onclick=startSweep;$('swStop').onclick=()=>{SW.running=false;$('swInfo').textContent='Stopped. '+SW.done+' of '+SW.total+' samples finished.';};
+['colIn','acIn','nuIn','zIn'].forEach(id=>$(id).addEventListener('input',drawSweep));
+function startSweep(){
+  const sizes=[...sizeBox.querySelectorAll('input:checked')].map(i=>+i.value).sort((a,b)=>a-b);
+  if(!sizes.length){$('swInfo').textContent='Pick at least one size N to run the sweep.';return;}
+  const a0=+$('swFrom').value,a1=+$('swTo').value,n=Math.max(3,Math.min(41,+$('swSteps').value|0));
+  if(!(a1>a0)){$('swInfo').textContent='Set “α to” above “α from”.';return;}
+  const alphas=[];for(let i=0;i<n;i++)alphas.push(+(a0+(a1-a0)*i/(n-1)).toFixed(4));
+  Object.assign(SW,{running:true,sizes,alphas,K:S.K,p:S.p,samples:Math.max(4,+$('swSamp').value|0),Tmax:+$('swTmax').value||2000,ti:0,sample:0,solver:null,results:{},done:0});
+  SW.tasks=[];for(const a of alphas)for(const N of sizes){SW.tasks.push({N,a});SW.results[N+'|'+a]={solved:0,n:0,times:[]};}
+  SW.total=SW.tasks.length*SW.samples;
+  $('swInfo').innerHTML='Running '+SW.K+'-SAT with <var>p</var> = '+SW.p.toFixed(2)+'…';
+}
+function sweepStep(){
+  const t0=performance.now();
+  while(SW.running&&performance.now()-t0<18){
+    if(SW.ti>=SW.tasks.length){SW.running=false;$('swInfo').innerHTML='Done: '+SW.K+'-SAT, <var>p</var> = '+SW.p.toFixed(2)+', '+SW.samples+' samples per point, <var>T</var><sub>max</sub> = '+SW.Tmax+'.';break;}
+    const task=SW.tasks[SW.ti];
+    if(!SW.solver) SW.solver=new Solver(SW.K,task.N,task.a,SW.p,seedCounter++);
+    SW.solver.run(4096,SW.Tmax,null);
+    if(SW.solver.status!=='running'){
+      const r=SW.results[task.N+'|'+task.a];r.n++;
+      if(SW.solver.status==='solved'){r.solved++;r.times.push(SW.solver.solveTime);}
+      SW.solver=null;SW.sample++;SW.done++;
+      if(SW.sample>=SW.samples){SW.sample=0;SW.ti++;}
+    }
+  }
+  $('swBar').style.width=(SW.total?100*SW.done/SW.total:0)+'%';
+  drawSweep();
+}
+function drawSweep(){
+  const col=$('colIn').checked,ac=+$('acIn').value||1,nu=+$('nuIn').value||1,z=+$('zIn').value||1;
+  const X=(a,N)=>col?((a-ac)/ac)*Math.pow(N,1/nu):a;
+  const ps=[],tau=[],legend=[];let tmin=Infinity,tmax=0,xmin=Infinity,xmax=-Infinity;
+  SW.sizes.forEach((N,i)=>{
+    const color=css(SERIES[(i+Math.max(0,6-SW.sizes.length))%6]);
+    const pp=[],tt=[];
+    for(const a of SW.alphas){const r=SW.results[N+'|'+a];if(!r||!r.n)continue;const x=X(a,N);xmin=Math.min(xmin,x);xmax=Math.max(xmax,x);
+      pp.push([x,r.solved/r.n]);
+      if(r.n===SW.samples&&r.solved*2>=r.n){const ts=r.times.slice().sort((u,v)=>u-v);let th=ts[Math.ceil(r.n/2)-1];if(col)th/=Math.pow(N,z);if(th>0){tt.push([x,th]);tmin=Math.min(tmin,th);tmax=Math.max(tmax,th);}}
+    }
+    ps.push({pts:pp,color,marker:true});tau.push({pts:tt,color,marker:true});legend.push({label:'N = '+N,color});
+  });
+  if(!isFinite(xmin)){xmin=col?-5:(+$('swFrom').value||0);xmax=col?5:(+$('swTo').value||1);}
+  if(xmax-xmin<1e-9){xmin-=.5;xmax+=.5;}
+  const pad=(xmax-xmin)*0.03;
+  const vl=col?[{x:0,label:'ε = 0'}]:[{x:ac,label:'α_c'}];
+  if(!col&&SW.K===3){vl.push({x:3.86,label:'α_d',row:1});vl.push({x:4.267,label:'α_s',row:2});}
+  const xl=col?'ε N^{1/ν̄}':'α';
+  drawPlot($('psPlot'),{xmin:xmin-pad,xmax:xmax+pad,ymin:-0.02,ymax:1.05,xlabel:xl,ylabel:'P_s',series:ps,vlines:vl,legend});
+  if(!isFinite(tmin)){tmin=1;tmax=100;}
+  let lo=Math.pow(10,Math.floor(Math.log10(tmin))),hi=Math.pow(10,Math.ceil(Math.log10(tmax)));if(hi/lo<10)hi=lo*10;
+  drawPlot($('tauPlot'),{xmin:xmin-pad,xmax:xmax+pad,ylog:true,ymin:lo,ymax:hi,xlabel:xl,ylabel:col?'τ_H / N^{z̄}':'τ_H',series:tau,vlines:vl});
+}
+
+/* ---------- factor graph ---------- */
+const FG={solver:null,pos:null,running:false,last:null,acc:0,lastT:0,view:null,manual:null};
+const fgCv=$('fg');
+function fgSync(){
+  const N=+$('fgN').value,a=+$('fgA').value;
+  $('fgNOut').textContent=N;$('fgAOut').innerHTML=a.toFixed(2)+'  (<var>M</var> = '+Math.max(1,Math.round(a*N))+')';
+  $('fgSpOut').textContent=$('fgSp').value+' flips/s';
+}
+function fgLayout(s){
+  const n=s.N,m=s.M,tot=n+m,W=fgCv.clientWidth||700,H=fgCv.clientHeight||460,asp=W/H;
+  const x=new Float64Array(tot),y=new Float64Array(tot),rng=mulberry32(seedCounter++);
+  for(let v=0;v<n;v++){const th=2*Math.PI*v/n;x[v]=Math.cos(th)*asp;y[v]=Math.sin(th);}
+  for(let c=0;c<m;c++){let sx=0,sy=0;for(let j=0;j<s.K;j++){const v=s.lits[c*s.K+j]>>1;sx+=x[v];sy+=y[v];}
+    x[n+c]=sx/s.K+(rng()-.5)*.1;y[n+c]=sy/s.K+(rng()-.5)*.1;}
+  const k=Math.sqrt(4*asp/tot),k2=k*k,fx=new Float64Array(tot),fy=new Float64Array(tot),IT=350;
+  for(let it=0;it<IT;it++){
+    fx.fill(0);fy.fill(0);
+    for(let i=0;i<tot;i++)for(let j=i+1;j<tot;j++){
+      let dx=x[i]-x[j],dy=y[i]-y[j],d2=dx*dx+dy*dy;if(d2<1e-6){dx=(rng()-.5)*1e-3;dy=(rng()-.5)*1e-3;d2=1e-6;}
+      const f=k2/d2;fx[i]+=dx*f;fy[i]+=dy*f;fx[j]-=dx*f;fy[j]-=dy*f;}
+    for(let c=0;c<m;c++)for(let j=0;j<s.K;j++){
+      const v=s.lits[c*s.K+j]>>1,i=n+c,dx=x[i]-x[v],dy=y[i]-y[v],d=Math.sqrt(dx*dx+dy*dy)+1e-9,f=d/k;
+      fx[i]-=dx*f;fy[i]-=dy*f;fx[v]+=dx*f;fy[v]+=dy*f;}
+    const temp=0.12*asp*(1-it/IT)+0.002;
+    for(let i=0;i<tot;i++){fx[i]-=x[i]*0.08/asp;fy[i]-=y[i]*0.08;
+      const d=Math.sqrt(fx[i]*fx[i]+fy[i]*fy[i])+1e-9,st=Math.min(d,temp);x[i]+=fx[i]/d*st;y[i]+=fy[i]/d*st;}
+  }
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for(let i=0;i<tot;i++){x0=Math.min(x0,x[i]);x1=Math.max(x1,x[i]);y0=Math.min(y0,y[i]);y1=Math.max(y1,y[i]);}
+  for(let i=0;i<tot;i++){x[i]=(x[i]-x0)/((x1-x0)||1);y[i]=(y[i]-y0)/((y1-y0)||1);}
+  return {x,y};
+}
+function fgNew(){
+  const N=+$('fgN').value,a=+$('fgA').value;
+  FG.solver=new Solver(S.K,N,a,S.p,seedCounter++);FG.pos=fgLayout(FG.solver);FG.last=null;FG.manual=null;
+  FG.running=false;fgBtn();fgMessage();fgDraw();
+}
+function fgBtn(){$('fgRun').textContent=FG.running?'Pause':'Run';}
+function fgMessage(){
+  const s=FG.solver,el=$('fgMsg');
+  $('fgMu').textContent=s.nU;$('fgM').textContent=s.M;$('fgTr').textContent=s.trials;$('fgT').textContent=s.t.toFixed(2);
+  if(s.nU===0){el.textContent=s.trials||FG.manual!=null?'Solved: every clause has at least one true literal.':'This instance started out satisfied. Try a higher α or a new instance.';return;}
+  if(FG.manual!=null){el.textContent='You flipped x'+(FG.manual+1)+'. '+s.nU+' clause'+(s.nU===1?' is':'s are')+' still unsatisfied.';return;}
+  const L=FG.last;
+  if(!L){el.textContent='Press Run or Step to let ASAT work, or click a variable to flip it.';return;}
+  const net=L.d>0?'would add '+L.d+' unsatisfied clause'+(L.d>1?'s':'')+(L.acc?', flipped anyway with probability p':', so the flip was rejected'):L.d<0?'removes '+(-L.d)+' unsatisfied clause'+(L.d<-1?'s':'')+', so it was flipped':'leaves the count unchanged, so it was flipped';
+  el.textContent='Picked unsatisfied clause C'+(L.c+1)+' and tried x'+(L.v+1)+': the flip '+net+'.';
+}
+function fgGeom(){
+  const s=FG.solver,W=fgCv.clientWidth,H=fgCv.clientHeight,tot=s.N+s.M;
+  const r=Math.max(6,Math.min(13,Math.sqrt(W*H/tot)*0.16)),sq=Math.max(5,r*0.85),m=r+8;
+  return {W,H,r,sq,X:i=>m+FG.pos.x[i]*(W-2*m),Y:i=>m+FG.pos.y[i]*(H-2*m)};
+}
+function fgDraw(){
+  const s=FG.solver;if(!s||!FG.pos)return;
+  const dpr=window.devicePixelRatio||1,g=fgGeom(),{W,H,r,sq,X,Y}=g;if(!W)return;
+  if(fgCv.width!==Math.round(W*dpr)||fgCv.height!==Math.round(H*dpr)){fgCv.width=Math.round(W*dpr);fgCv.height=Math.round(H*dpr);}
+  const ctx=fgCv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+  const cT=css('--solid'),cF=css('--muted'),cU=css('--unsat'),cFr=css('--fragile'),cFl=css('--flash'),ink=css('--ink'),panel=css('--panel');
+  const n=s.N,K=s.K,L=FG.last;
+  // edges: false literals first, true on top
+  for(const pass of [0,1])for(let c=0;c<s.M;c++)for(let j=0;j<K;j++){
+    const l=s.lits[c*K+j],v=l>>1,neg=l&1,tr=s.assign[v]^neg;if(tr!==pass)continue;
+    ctx.beginPath();ctx.moveTo(X(v),Y(v));ctx.lineTo(X(n+c),Y(n+c));
+    ctx.setLineDash(neg?[5,4]:[]);
+    if(tr){ctx.strokeStyle=cT;ctx.lineWidth=3.5;ctx.globalAlpha=1;}
+    else if(s.sat[c]===0){ctx.strokeStyle=cU;ctx.lineWidth=1.6;ctx.globalAlpha=.85;}
+    else{ctx.strokeStyle=cF;ctx.lineWidth=1;ctx.globalAlpha=.55;}
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);ctx.globalAlpha=1;
+  // clauses
+  for(let c=0;c<s.M;c++){
+    const x=X(n+c),y=Y(n+c);ctx.fillStyle=s.sat[c]===0?cU:s.sat[c]===1?cFr:cT;
+    ctx.fillRect(x-sq/2,y-sq/2,sq,sq);
+    if(L&&L.c===c&&!FG.manual){ctx.strokeStyle=cFl;ctx.lineWidth=3;ctx.strokeRect(x-sq/2-3,y-sq/2-3,sq+6,sq+6);}
+  }
+  // variables
+  ctx.font='500 '+Math.round(r*0.95)+'px "Schibsted Grotesk",system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  for(let v=0;v<n;v++){
+    const x=X(v),y=Y(v),on=s.assign[v];
+    ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle=on?ink:panel;ctx.fill();ctx.lineWidth=1.8;ctx.strokeStyle=ink;ctx.stroke();
+    const hl=(L&&L.v===v&&FG.manual==null)||FG.manual===v;
+    if(hl){ctx.beginPath();ctx.arc(x,y,r+4,0,7);ctx.strokeStyle=cFl;ctx.lineWidth=3;if(L&&!L.acc&&FG.manual==null)ctx.setLineDash([3,3]);ctx.stroke();ctx.setLineDash([]);}
+    if(r>=8){ctx.fillStyle=on?panel:ink;ctx.fillText(String(v+1),x,y+.5);}
+  }
+}
+function fgTrial(){const s=FG.solver;if(!s||s.nU===0)return;FG.manual=null;FG.last=s.trial();if(s.nU===0){FG.running=false;fgBtn();}}
+$('fgN').oninput=()=>{fgSync();fgNew();};
+$('fgA').oninput=()=>{fgSync();fgNew();};
+$('fgSp').oninput=fgSync;
+$('fgNew').onclick=fgNew;
+$('fgStep').onclick=()=>{FG.running=false;fgBtn();fgTrial();fgMessage();fgDraw();};
+$('fgRun').onclick=()=>{if(FG.solver.nU===0)fgNew();FG.running=!FG.running;FG.lastT=performance.now();FG.acc=0;fgBtn();};
+fgCv.addEventListener('click',e=>{
+  const s=FG.solver;if(!s)return;const rect=fgCv.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top,g=fgGeom();
+  let best=-1,bd=Infinity;for(let v=0;v<s.N;v++){const d=Math.hypot(g.X(v)-mx,g.Y(v)-my);if(d<bd){bd=d;best=v;}}
+  if(best<0||bd>g.r+8)return;
+  s.flip(best);FG.manual=best;FG.last=null;if(s.nU===0){FG.running=false;fgBtn();}
+  fgMessage();fgDraw();
+});
+function fgTick(now){
+  if(!FG.running)return;
+  FG.acc+=(now-FG.lastT)/1000*(+$('fgSp').value);FG.lastT=now;
+  let did=false;while(FG.acc>=1&&FG.running){FG.acc-=1;fgTrial();did=true;}
+  if(did){fgMessage();fgDraw();}
+}
+
+/* ---------- loop ---------- */
+function tick(){
+  if(live.running&&live.solver){
+    const s=live.solver,n=speedFromSlider(+$('spIn').value),Tmax=+$('tmaxIn').value||1e9;
+    live.frame++;s.stamp=live.frame;live.flashOn=n<=300;
+    const t0=performance.now();let done=0;
+    while(done<n&&s.status==='running'){const ch=Math.min(n-done,8192);s.run(ch,Tmax,record);done+=ch;if(performance.now()-t0>14)break;}
+    if(s.status!=='running'){live.running=false;updateRunBtn();}
+    render();
+  }
+  if(SW.running) sweepStep();
+  fgTick(performance.now());
+  requestAnimationFrame(tick);
+}
+
+/* ---------- theme & resize ---------- */
+function refreshAll(){readColors();layoutLattice();render();drawSweep();fgDraw();}
+try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',refreshAll);}catch(e){}
+new MutationObserver(refreshAll).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+let rz;new ResizeObserver(()=>{clearTimeout(rz);rz=setTimeout(refreshAll,60);}).observe(document.querySelector('main'));
+
+readColors();
+applyPreset(0);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(refreshAll);
+requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
