@@ -12,7 +12,7 @@
   function effective(){return saved()||(sys&&sys.matches?'dark':'light')}
   function apply(){root.setAttribute('data-theme',effective());root.style.colorScheme=effective()}
   apply();
-  // Pages listen for OS colour-scheme changes to redraw their canvases; make those
+  // Pages listen for OS color-scheme changes to redraw their canvases; make those
   // listeners (and .matches checks) follow the chosen theme instead of the OS alone.
   if(nativeMM){
     window.matchMedia=function(q){
@@ -71,6 +71,7 @@
 @media print{#theme-toggle{display:none}}
 </style>
 <!-- theme-toggle:end -->
+
 
 
 
@@ -229,7 +230,7 @@ th{font-weight:500;color:var(--muted)}
 
     <div class="stage">
       <div class="panel">
-        <div id="latticeWrap"><canvas id="lattice" aria-label="Grid of clauses coloured by satisfaction state"></canvas></div>
+        <div id="latticeWrap"><canvas id="lattice" aria-label="Grid of clauses colored by satisfaction state"></canvas></div>
         <div class="legend" style="margin-top:10px">
           <span><i style="background:var(--unsat)"></i>Unsatisfied</span>
           <span><i style="background:var(--fragile)"></i>Held by one literal</span>
@@ -522,14 +523,14 @@ function applyPreset(i){
   markPreset();syncControls();live.traces=[];live.cur=null;newInstance(false);drawSweep();
   $('fgA').value=preset.alpha;fgSync();fgNew();
 }
-function customised(){ // leaving a preset's exact settings keeps the preset for guide lines, but unmark it
+function customized(){ // leaving a preset's exact settings keeps the preset for guide lines, but unmark it
   const on=S.K===preset.K&&Math.abs(S.p-preset.p)<1e-9;
   [...presetBox.children].forEach((b,i)=>b.setAttribute('aria-pressed',on&&PRESETS[i]===preset));
 }
 $('nIn').oninput=e=>{S.N=nFromSlider(+e.target.value);syncControls();newInstance(live.running);};
 $('aIn').oninput=e=>{S.alpha=+e.target.value;syncControls();newInstance(live.running);};
-$('pIn').oninput=e=>{S.p=+e.target.value;syncControls();if(live.solver)live.solver.p=S.p;if(FG.solver)FG.solver.p=S.p;customised();};
-$('kseg').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.K=+b.dataset.k;syncControls();newInstance(live.running);fgNew();customised();};
+$('pIn').oninput=e=>{S.p=+e.target.value;syncControls();if(live.solver)live.solver.p=S.p;if(FG.solver)FG.solver.p=S.p;customized();};
+$('kseg').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.K=+b.dataset.k;syncControls();newInstance(live.running);fgNew();customized();};
 $('spIn').oninput=e=>{$('spOut').textContent=speedFromSlider(+e.target.value).toLocaleString()+' flips/frame';};
 $('spIn').value=22;$('spIn').oninput({target:$('spIn')});
 $('runBtn').onclick=()=>{
