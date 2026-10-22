@@ -170,7 +170,7 @@ th{font-weight:500;color:var(--muted)}
 .note{font-size:.85rem;color:var(--muted);margin:10px 0 0}
 .vars{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:6px}
 .vchip{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 4px 5px;border:1.5px solid var(--ink);border-radius:8px;background:var(--panel);color:var(--ink);line-height:1.2}
-.vchip .nm{font-family:"Newsreader",Georgia,serif;font-style:italic;font-size:1.1rem}
+.vchip .nm{font-family:"Newsreader",Georgia,serif;font-size:1.1rem}
 .vchip .val{font-size:.75rem;font-weight:700;letter-spacing:.04em}
 .vchip .dl{font-size:.72rem;opacity:.8}
 .vchip.on{background:var(--ink);color:var(--panel)}
@@ -184,8 +184,14 @@ th{font-weight:500;color:var(--muted)}
 .cl.hide{display:none}
 .cl .id{font-size:.78rem;color:var(--muted);width:2.6em;flex:none}
 .cl .or,.cl .par{color:var(--muted);font-size:.9rem}
-.lit{font:italic 1.02rem "Newsreader",Georgia,serif;padding:1px 6px;border-radius:5px;border:1px solid var(--rule);background:transparent;color:var(--muted)}
+.lit{font:1.02rem "Newsreader",Georgia,serif;padding:1px 6px;border-radius:5px;border:1px solid var(--rule);background:transparent;color:var(--muted)}
 .lit.t{background:var(--solid);border-color:var(--solid);color:#fff}
+/* math letters italic, indices upright; negation as an overline bar */
+.vchip .nm i,.lit i{font-style:italic}
+.vchip .nm sub,.lit sub{font-variant-numeric:lining-nums tabular-nums}
+.lit .neg{position:relative;display:inline-block}
+.lit .neg::before{content:"";position:absolute;left:.06em;right:-.1em;top:.06em;border-top:.09em solid currentColor;border-radius:1px}
+.lit.ng{padding-top:3px}
 .cl.s0 .lit{border-color:color-mix(in srgb,var(--unsat) 45%,var(--rule));color:var(--ink)}
 .clhead{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:10px}
 .clhead h3,.varhead h3{margin:0;font-size:1rem;font-weight:700}
@@ -235,7 +241,7 @@ th{font-weight:500;color:var(--muted)}
           <span><i style="background:var(--unsat)"></i>Unsatisfied</span>
           <span><i style="background:var(--fragile)"></i>Held by one literal</span>
           <span><i style="background:var(--solid)"></i>Held by two or more</span>
-          <span><i style="background:var(--flash)"></i>Touched by the last flip (slow speeds)</span>
+          <span><i style="background:transparent;box-shadow:inset 0 0 0 2px var(--flash)"></i>Touched by the last flip (outline, slow speeds)</span>
         </div>
       </div>
       <div class="panel">
@@ -446,10 +452,11 @@ const SERIES=['--s1','--s2','--s3','--s4','--s5','--s6'];
 function niceStep(r){const e=Math.pow(10,Math.floor(Math.log10(r)));const f=r/e;return(f<1.5?1:f<3?2:f<7?5:10)*e;}
 function parseRich(s){const out=[];let i=0;while(i<s.length){const ch=s[i];if((ch==='_'||ch==='^')&&i+1<s.length){let t;if(s[i+1]==='{'){const j=s.indexOf('}',i+2);t=s.slice(i+2,j);i=j+1;}else{t=s[i+1];i+=2;}out.push({t,k:ch==='_'?1:-1});}else{let j=i;while(j<s.length&&s[j]!=='_'&&s[j]!=='^')j++;out.push({t:s.slice(i,j),k:0});i=j;}}return out;}
 function drawRich(ctx,s,x,y,align,size,fam){
-  const segs=parseRich(s),f=k=>(k?Math.round(size*0.72):size)+'px '+fam;let w=0;
-  for(const g of segs){ctx.font=f(g.k);g.w=ctx.measureText(g.t).width+(g.k?1:0);w+=g.w;}
+  const up=fam.replace(/^italic /,'');
+  const segs=parseRich(s).flatMap(g=>g.t.split(/(\d+)/).filter(Boolean).map(t=>({t,k:g.k,d:/^\d/.test(t)}))),f=g=>(g.k?Math.round(size*0.72):size)+'px '+(g.d?up:fam);let w=0;
+  for(const g of segs){ctx.font=f(g);g.w=ctx.measureText(g.t).width+(g.k?1:0);w+=g.w;}
   let cx=align==='center'?x-w/2:align==='right'?x-w:x;const ta=ctx.textAlign;ctx.textAlign='left';
-  for(const g of segs){ctx.font=f(g.k);ctx.fillText(g.t,cx+(g.k?1:0),y+(g.k===1?size*0.28:g.k===-1?-size*0.38:0));cx+=g.w;}
+  for(const g of segs){ctx.font=f(g);ctx.fillText(g.t,cx+(g.k?1:0),y+(g.k===1?size*0.28:g.k===-1?-size*0.38:0));cx+=g.w;}
   ctx.textAlign=ta;
 }
 const MATHF='"Newsreader",Georgia,serif';
@@ -576,14 +583,19 @@ function drawLattice(){
   const s=live.solver;if(!s)return;
   const ctx=lat.getContext('2d'),dpr=window.devicePixelRatio||1;
   const {cols,rows,cs}=LAY,M=s.M,sat=s.sat,touch=s.touch,fr=live.frame,flash=live.flashOn;
-  const col=c=>flash&&touch[c]===fr?COLORS.flash:sat[c]===0?COLORS.unsat:sat[c]===1?COLORS.fragile:COLORS.solid;
+  const state=c=>sat[c]===0?COLORS.unsat:sat[c]===1?COLORS.fragile:COLORS.solid;
+  const hit=c=>flash&&touch[c]===fr;
   ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,LAY.W,LAY.H);
   if(cs>=4&&M<=6000){
     const g=cs>=10?2:1;
-    for(let c=0;c<M;c++){const k=col(c);ctx.fillStyle='rgb('+k[0]+','+k[1]+','+k[2]+')';ctx.fillRect((c%cols)*cs,Math.floor(c/cols)*cs,cs-g,cs-g);}
+    for(let c=0;c<M;c++){const k=state(c);ctx.fillStyle='rgb('+k[0]+','+k[1]+','+k[2]+')';ctx.fillRect((c%cols)*cs,Math.floor(c/cols)*cs,cs-g,cs-g);}
+    // touched clauses: amber outline on top, so the state colour underneath stays visible
+    if(flash){const f=COLORS.flash,lw=cs>=14?2.5:cs>=7?1.5:1;ctx.strokeStyle='rgb('+f[0]+','+f[1]+','+f[2]+')';ctx.lineWidth=lw;
+      for(let c=0;c<M;c++)if(hit(c)){const x=(c%cols)*cs,y=Math.floor(c/cols)*cs,sz=cs-g;
+        if(sz>2*lw+1)ctx.strokeRect(x+lw/2,y+lw/2,sz-lw,sz-lw);else{ctx.fillStyle=ctx.strokeStyle;ctx.fillRect(x,y,sz,sz);}}}
   }else{
     off.width=cols;off.height=rows;const octx=off.getContext('2d');const img=octx.createImageData(cols,rows),d=img.data;
-    for(let i=0;i<cols*rows;i++){const k=i<M?col(i):COLORS.empty;d[i*4]=k[0];d[i*4+1]=k[1];d[i*4+2]=k[2];d[i*4+3]=i<M?255:0;}
+    for(let i=0;i<cols*rows;i++){const k=i>=M?COLORS.empty:hit(i)&&sat[i]>0?COLORS.flash:state(i);d[i*4]=k[0];d[i*4+1]=k[1];d[i*4+2]=k[2];d[i*4+3]=i<M?255:0;}
     octx.putImageData(img,0,0);ctx.imageSmoothingEnabled=false;ctx.drawImage(off,0,0,LAY.W,LAY.H);
   }
 }
@@ -690,7 +702,7 @@ function fgNew(){
   const s=FG.solver,vb=$('vars'),cb=$('clauses');vb.innerHTML='';cb.innerHTML='';FG.chips=[];FG.cards=[];FG.lits=[];
   for(let v=0;v<N;v++){
     const b=document.createElement('button');b.className='vchip';b.dataset.v=v;
-    b.innerHTML='<span class="nm">x<sub>'+(v+1)+'</sub></span><span class="val"></span><span class="dl"></span>';
+    b.innerHTML='<span class="nm"><i>x</i><sub>'+(v+1)+'</sub></span><span class="val"></span><span class="dl"></span>';
     vb.appendChild(b);FG.chips.push(b);
   }
   for(let c=0;c<s.M;c++){
@@ -698,7 +710,7 @@ function fgNew(){
     let html='<span class="id">C'+(c+1)+'</span><span class="par">(</span>';
     for(let j=0;j<s.K;j++){const l=s.lits[c*s.K+j],v=l>>1;
       if(j)html+='<span class="or">∨</span>';
-      html+='<button class="lit" data-v="'+v+'" title="Toggle x'+(v+1)+'">'+(l&1?'¬':'')+'x<sub>'+(v+1)+'</sub></button>';}
+      const ng=l&1;html+='<button class="lit'+(ng?' ng':'')+'" data-v="'+v+'" title="Toggle x'+(v+1)+'" aria-label="'+(ng?'not ':'')+'x'+(v+1)+'"><i'+(ng?' class="neg"':'')+'>x</i><sub>'+(v+1)+'</sub></button>';}
     d.innerHTML=html+'<span class="par">)</span>';cb.appendChild(d);FG.cards.push(d);
     FG.lits.push([...d.querySelectorAll('.lit')]);
   }
