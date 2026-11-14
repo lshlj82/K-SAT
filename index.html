@@ -197,6 +197,16 @@ th{font-weight:500;color:var(--muted)}
 .clhead h3,.varhead h3{margin:0;font-size:1rem;font-weight:700}
 .varhead{margin-bottom:10px}
 .varhead p{margin:2px 0 0;font-size:.85rem;color:var(--muted)}
+#fgGraph{display:block;width:100%;height:auto;touch-action:manipulation}
+#fgGraph .vn{cursor:pointer}
+#fgGraph text{font-family:"Newsreader",Georgia,serif;pointer-events:none}
+.fglegend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.85rem;color:var(--muted);margin-top:8px;align-items:center}
+.fglegend svg{vertical-align:-3px;margin-right:6px}
+.fghead{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px 16px;margin-bottom:10px}
+.fghead h3{margin:0;font-size:1rem;font-weight:700}
+.fghead p{margin:2px 0 0;font-size:.85rem;color:var(--muted);max-width:60ch}
+.fghead .seg{flex:none}
+.fghead .seg button{padding:5px 12px;font-size:.88rem}
 </style>
 </head>
 <body>
@@ -263,7 +273,7 @@ th{font-weight:500;color:var(--muted)}
 
 <section id="graph">
   <h2>Solve it by hand</h2>
-  <p class="sub">A small instance written out in full. Toggle the variables yourself and watch the clauses light up: a literal is highlighted when it is true, and a clause is satisfied once at least one of its literals is. Or let ASAT take a step to see which move it would make.</p>
+  <p class="sub">A small instance written out in full, both as a list of clauses and as a factor graph. Toggle the variables yourself and watch the clauses light up: a literal is highlighted when it is true, and a clause is satisfied once at least one of its literals is. Or let ASAT take a step to see which move it would make.</p>
   <div class="grid">
     <div class="panel">
       <div class="ctl"><label for="fgN">Variables <var>N</var><output id="fgNOut"></output></label>
@@ -284,6 +294,21 @@ th{font-weight:500;color:var(--muted)}
       <div class="panel">
         <div class="varhead"><h3>Variables</h3><p>Click to toggle between true and false. Hover to find where a variable appears.</p></div>
         <div class="vars" id="vars"></div>
+      </div>
+      <div class="panel">
+        <div class="fghead"><div><h3>Factor graph</h3><p>The same formula as a bipartite network: each variable is a circle, each clause a square, and a clause is linked to the <var>K</var> variables it contains. Click a circle to flip that variable.</p></div>
+          <div class="seg" id="fgLay" role="group" aria-label="Layout"><button data-lay="net" aria-pressed="true">Network</button><button data-lay="rows" aria-pressed="false">Two rows</button></div></div>
+        <svg id="fgGraph" viewBox="0 0 800 440" role="img" aria-label="Factor graph of the formula: variable nodes linked to the clauses they appear in"></svg>
+        <div class="fglegend">
+          <span><svg width="18" height="18"><circle cx="9" cy="9" r="7" fill="var(--ink)"/></svg>variable, true</span>
+          <span><svg width="18" height="18"><circle cx="9" cy="9" r="7" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.5"/></svg>variable, false</span>
+          <span><svg width="18" height="18"><rect x="3" y="3" width="12" height="12" fill="var(--unsat)"/></svg>unsatisfied clause</span>
+          <span><svg width="18" height="18"><rect x="3" y="3" width="12" height="12" fill="var(--fragile)"/></svg>held by one literal</span>
+          <span><svg width="18" height="18"><rect x="3" y="3" width="12" height="12" fill="var(--solid)"/></svg>held by two or more</span>
+          <span><svg width="30" height="10"><line x1="1" y1="5" x2="29" y2="5" stroke="var(--muted)" stroke-width="2"/></svg><var>x</var><sub><var>i</var></sub> in the clause</span>
+          <span><svg width="30" height="10"><line x1="1" y1="5" x2="29" y2="5" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4"/></svg>negated, <var>x̄</var><sub><var>i</var></sub></span>
+          <span><svg width="30" height="10"><line x1="1" y1="5" x2="29" y2="5" stroke="var(--solid)" stroke-width="3.5"/></svg>literal is true</span>
+        </div>
       </div>
       <div class="panel">
         <div class="clhead"><h3>Clauses</h3>
@@ -689,7 +714,7 @@ function drawSweep(){
 }
 
 /* ---------- clause list (solve by hand) ---------- */
-const FG={solver:null,running:false,last:null,acc:0,lastT:0,manual:null,mine:0,hv:-1,chips:[],cards:[],lits:[]};
+const FG={solver:null,running:false,last:null,acc:0,lastT:0,manual:null,mine:0,hv:-1,hc:-1,chips:[],cards:[],lits:[],lay:"net",g:null};
 const xs=v=>'<var>x</var><sub>'+(v+1)+'</sub>';
 function fgSync(){
   const N=+$('fgN').value,a=+$('fgA').value;
@@ -714,7 +739,7 @@ function fgNew(){
     d.innerHTML=html+'<span class="par">)</span>';cb.appendChild(d);FG.cards.push(d);
     FG.lits.push([...d.querySelectorAll('.lit')]);
   }
-  fgDraw();fgMessage();
+  fgGraphBuild();fgDraw();fgMessage();
 }
 function fgBtn(){$('fgRun').textContent=FG.running?'Pause':'Run';}
 function fgDraw(){
@@ -729,6 +754,7 @@ function fgDraw(){
     card.className='cl'+(sc===0?' s0':sc===1?' s1':'')+(L&&L.c===c?' pick':'')+(only&&sc>0?' hide':'');
     FG.lits[c].forEach((el,j)=>{const l=s.lits[c*s.K+j];el.classList.toggle('t',!!(s.assign[l>>1]^(l&1)));el.classList.toggle('hl',FG.hv===(l>>1));});
   }
+  fgGraphDraw();
   $('fgMu').textContent=s.nU;$('fgM').textContent=s.M;$('fgTr').textContent=s.trials;$('fgMine').textContent=FG.mine;
 }
 function fgMessage(){
@@ -755,6 +781,72 @@ for(const box of [$('vars'),$('clauses')]){
   box.addEventListener('pointerover',e=>{const b=e.target.closest('[data-v]');const v=b?+b.dataset.v:-1;if(v!==FG.hv){FG.hv=v;fgDraw();}});
   box.addEventListener('pointerleave',()=>{FG.hv=-1;fgDraw();});
 }
+
+/* ---------- factor graph ---------- */
+const SVGNS='http://www.w3.org/2000/svg';
+function sv(tag,a,p){const e=document.createElementNS(SVGNS,tag);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+function fgLayout(s){
+  const N=s.N,M=s.M,K=s.K,W=800,n=N+M;
+  if(FG.lay==='rows'){
+    const H=Math.max(300,Math.min(440,240+M));const pos=[];
+    // order variables, then put each clause under the mean position of its variables (sorted), so edges stay short
+    for(let v=0;v<N;v++)pos.push([40+(W-80)*(N<2?.5:v/(N-1)),70]);
+    const cm=[];for(let c=0;c<M;c++){let x=0;for(let j=0;j<K;j++)x+=pos[s.lits[c*K+j]>>1][0];cm.push([x/K,c]);}
+    cm.sort((a,b)=>a[0]-b[0]);const rows=M>45?2:1,per=Math.ceil(M/rows);
+    const cp=new Array(M);cm.forEach(([,c],k)=>{const r=Math.floor(k/per),kk=k-r*per,cnt=Math.min(per,M-r*per);cp[c]=[40+(W-80)*(cnt<2?.5:kk/(cnt-1)),H-60-r*46+(rows>1&&kk%2?0:0)];});
+    return {pos:pos.concat(cp),H};
+  }
+  // network: Fruchterman–Reingold on the bipartite graph, deterministic start
+  const H=440,rng=mulberry32(97+N*131+M),P=[];
+  for(let v=0;v<N;v++){const a=2*Math.PI*v/N;P.push([W/2+230*Math.cos(a),H/2+170*Math.sin(a)]);}
+  for(let c=0;c<M;c++){let x=0,y=0;for(let j=0;j<K;j++){const q=P[s.lits[c*K+j]>>1];x+=q[0];y+=q[1];}P.push([x/K+(rng()-.5)*30,y/K+(rng()-.5)*30]);}
+  const E=[];for(let c=0;c<M;c++)for(let j=0;j<K;j++)E.push([s.lits[c*K+j]>>1,N+c]);
+  const k=Math.sqrt(W*H/n)*0.42,it=320,gr=0.05*Math.min(1,36/n);let T=60;
+  const dx=new Float64Array(n),dy=new Float64Array(n);
+  for(let t=0;t<it;t++){dx.fill(0);dy.fill(0);
+    for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){let ex=P[i][0]-P[j][0],ey=P[i][1]-P[j][1],d2=ex*ex+ey*ey+0.01;const f=k*k/d2;dx[i]+=ex*f;dy[i]+=ey*f;dx[j]-=ex*f;dy[j]-=ey*f;}
+    for(const[a,b]of E){const ex=P[a][0]-P[b][0],ey=P[a][1]-P[b][1],d=Math.hypot(ex,ey)+0.01,f=d/k;dx[a]-=ex*f;dy[a]-=ey*f;dx[b]+=ex*f;dy[b]+=ey*f;}
+    for(let i=0;i<n;i++){dx[i]+=(W/2-P[i][0])*gr;dy[i]+=(H/2-P[i][1])*gr*1.5;const d=Math.hypot(dx[i],dy[i])||1,m=Math.min(d,T);
+      P[i][0]=Math.max(28,Math.min(W-28,P[i][0]+dx[i]/d*m));P[i][1]=Math.max(24,Math.min(H-24,P[i][1]+dy[i]/d*m));}
+    T=Math.max(1.5,T*0.985);}
+  return {pos:P,H};
+}
+function fgGraphBuild(){
+  const s=FG.solver,svg=$('fgGraph');svg.innerHTML='';if(!s)return;
+  const {pos,H}=fgLayout(s);svg.setAttribute('viewBox','0 0 800 '+H);
+  const N=s.N,M=s.M,K=s.K,big=M>70,vr=N>28?11:13,cs=big?9:12;
+  const gE=sv('g',{},svg),gC=sv('g',{},svg),gV=sv('g',{},svg);const edges=[],cn=[],vn=[];
+  for(let c=0;c<M;c++)for(let j=0;j<K;j++){const l=s.lits[c*K+j],v=l>>1,a=pos[v],b=pos[N+c];
+    edges.push({el:sv('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],'stroke-dasharray':l&1?'5 4':'','stroke-linecap':'round'},gE),c,v,l});}
+  for(let c=0;c<M;c++){const[x,y]=pos[N+c],g=sv('g',{},gC);
+    const r=sv('rect',{x:x-cs/2,y:y-cs/2,width:cs,height:cs,rx:2},g);
+    if(!big){const t=sv('text',{x,y:y+cs/2+11,'text-anchor':'middle','font-size':10,fill:'var(--muted)','font-style':'normal'},g);t.textContent='C'+(c+1);}
+    g.addEventListener('pointerenter',()=>{FG.hc=c;fgGraphDraw();});g.addEventListener('pointerleave',()=>{FG.hc=-1;fgGraphDraw();});
+    cn.push(r);}
+  for(let v=0;v<N;v++){const[x,y]=pos[v],g=sv('g',{class:'vn',tabindex:'0',role:'button'},gV);
+    const ring=sv('circle',{cx:x,cy:y,r:vr+5,fill:'none','stroke-width':3},g);
+    const c=sv('circle',{cx:x,cy:y,r:vr,'stroke-width':1.6},g);
+    const t=sv('text',{x,y:y+4.5,'text-anchor':'middle','font-size':vr>12?13:12},g);
+    const ti=sv('tspan',{'font-style':'italic'},t);ti.textContent='x';const ts=sv('tspan',{'font-size':vr>12?9:8,dy:3},t);ts.textContent=String(v+1);
+    g.addEventListener('click',()=>fgToggle(v));
+    g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fgToggle(v);}});
+    g.addEventListener('pointerenter',()=>{FG.hv=v;fgDraw();});g.addEventListener('pointerleave',()=>{FG.hv=-1;fgDraw();});
+    vn.push({ring,c,t});}
+  FG.g={edges,cn,vn};
+}
+function fgGraphDraw(){
+  const s=FG.solver,G=FG.g;if(!s||!G)return;const L=FG.manual==null?FG.last:null;
+  for(const e of G.edges){const tr=!!(s.assign[e.v]^(e.l&1)),hl=FG.hv===e.v||FG.hc===e.c||(L&&L.c===e.c);
+    e.el.setAttribute('stroke',tr?'var(--solid)':s.sat[e.c]===0?'color-mix(in srgb,var(--unsat) 55%,var(--rule))':'var(--muted)');
+    const thin=s.M>70;e.el.setAttribute('stroke-width',(tr?(thin?2:3.2):(thin?1:1.5))+(hl?1.4:0));e.el.setAttribute('opacity',FG.hv>=0||FG.hc>=0?(hl?1:.25):tr?1:.6);}
+  for(let c=0;c<s.M;c++){const r=G.cn[c],sc=s.sat[c];r.setAttribute('fill',sc===0?'var(--unsat)':sc===1?'var(--fragile)':'var(--solid)');
+    const pk=L&&L.c===c;r.setAttribute('stroke',pk||FG.hc===c?'var(--flash)':'var(--panel)');r.setAttribute('stroke-width',pk||FG.hc===c?3:1.2);}
+  for(let v=0;v<s.N;v++){const n=G.vn[v],on=!!s.assign[v];
+    n.c.setAttribute('fill',on?'var(--ink)':'var(--panel)');n.c.setAttribute('stroke','var(--ink)');n.t.setAttribute('fill',on?'var(--panel)':'var(--ink)');
+    const tried=L&&L.v===v;n.ring.setAttribute('stroke',tried||FG.hv===v?'var(--flash)':'none');n.ring.setAttribute('stroke-dasharray',FG.hv===v&&!tried?'4 3':'');}
+}
+document.querySelectorAll('#fgLay button').forEach(b=>b.addEventListener('click',()=>{FG.lay=b.dataset.lay;
+  document.querySelectorAll('#fgLay button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));fgGraphBuild();fgGraphDraw();}));
 function fgTick(now){
   if(!FG.running)return;
   FG.acc+=(now-FG.lastT)/1000*(+$('fgSp').value);FG.lastT=now;
